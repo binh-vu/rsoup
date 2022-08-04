@@ -1,0 +1,19 @@
+[package]
+name = "table-extractor"
+version = "1.0.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "table_extractor"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+html5ever = "0.26.0"
+pyo3 = "0.16.3"
+scraper = "0.13.0"
+soup = "0.5.1"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
