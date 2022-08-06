@@ -1,18 +1,25 @@
 use hashbrown::HashMap;
 
-use crate::helper::{ChainN, ITree, PreorderTraversal};
+use crate::misc::{ChainN, ITree, PreorderTraversal};
+use pyo3::{prelude::*, types::PyString};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[pyclass(module = "table_extractor.text")]
 pub struct TextTrace {
+    #[pyo3(get)]
     pub text: String,
     // html elements are stored in order
     pub trace: Vec<TextHTMLElement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[pyclass(module = "table_extractor.text")]
 pub struct TextHTMLElement {
+    #[pyo3(get)]
     pub tag: String,
+    #[pyo3(get)]
     pub start: usize,
+    #[pyo3(get)]
     pub end: usize,
     pub attrs: HashMap<String, String>,
     pub children: Vec<TextHTMLElement>,
@@ -118,6 +125,14 @@ impl TextTrace {
     }
 }
 
+#[pymethods]
+impl TextTrace {
+    #[getter]
+    fn text(&self) -> PyResult<&String> {
+        Ok(&self.text)
+    }
+}
+
 impl TextHTMLElement {
     pub fn shift(&mut self, offset: usize) {
         self.start += offset;
@@ -128,64 +143,23 @@ impl TextHTMLElement {
     }
 }
 
+#[pymethods]
+impl TextHTMLElement {
+    fn get_attr(&self, name: &str) -> PyResult<Option<&str>> {
+        Ok(self.attrs.get(name).map(|s| s.as_str()))
+    }
+
+    fn has_attr(&self, name: &str) -> PyResult<bool> {
+        Ok(self.attrs.contains_key(name))
+    }
+}
+
 impl ITree<TextHTMLElement> for TextHTMLElement {
-    fn get_root<'s>(&'s self) -> &'s TextHTMLElement {
+    fn get_root_<'s>(&'s self) -> &'s TextHTMLElement {
         self
     }
 
-    fn get_children<'s>(&'s self, node: &'s TextHTMLElement) -> &'s [TextHTMLElement] {
+    fn get_children_<'s>(&'s self, node: &'s TextHTMLElement) -> &'s [TextHTMLElement] {
         return &node.children;
-    }
-}
-
-pub struct TreesPreorderTraversal<'s> {
-    trees: &'s [TextHTMLElement],
-    tree_index: usize,
-    stack: Vec<(&'s TextHTMLElement, usize)>,
-}
-
-impl<'s> TreesPreorderTraversal<'s> {
-    pub fn new(trees: &'s [TextHTMLElement]) -> Self {
-        Self {
-            trees,
-            tree_index: 0,
-            stack: Vec::new(),
-        }
-    }
-}
-
-impl<'s> Iterator for TreesPreorderTraversal<'s> {
-    type Item = &'s TextHTMLElement;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.stack.len() == 0 {
-                if self.tree_index == self.trees.len() {
-                    // no more tree
-                    return None;
-                }
-                // pop one tree and add it to the stack
-                self.stack.push((&self.trees[self.tree_index], 0));
-                self.tree_index += 1;
-                // return this node
-                return Some(&self.stack[self.stack.len() - 1].0);
-            }
-
-            // current element, has been returned previously,
-            // so we will try to return its child
-            let n1 = self.stack.len() - 1;
-            let (node, child_index) = self.stack[n1];
-            if child_index < node.children.len() {
-                // add this child to stack
-                self.stack.push((&node.children[child_index], 0));
-                // mark this child has been returned
-                self.stack[n1].1 += 1;
-                // return this child
-                return Some(&node.children[child_index]);
-            }
-
-            // no child can be returned, we done at this level, move up
-            self.stack.pop();
-        }
     }
 }

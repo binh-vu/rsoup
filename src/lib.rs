@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 pub mod context;
 pub mod error;
 pub mod extractors;
-pub mod helper;
+pub mod misc;
 pub mod table;
 pub mod text;
 

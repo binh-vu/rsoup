@@ -2,7 +2,7 @@ use ego_tree::{NodeRef, Tree};
 use hashbrown::HashSet;
 use scraper::Node;
 
-use crate::helper::convert_attrs;
+use crate::misc::convert_attrs;
 
 use super::{
     line::{Line, Paragraph},

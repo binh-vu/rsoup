@@ -1,7 +1,7 @@
 use crate::{
     context::ContentHierarchy,
     error::TableExtractorError,
-    helper::{convert_attrs, Enum2, ITree},
+    misc::{convert_attrs, Enum2},
     text::{get_text_with_trace, TextHTMLElement, TextTrace, BLOCK_ELEMENTS},
 };
 
@@ -10,7 +10,7 @@ use ego_tree::NodeRef;
 use hashbrown::HashSet;
 use scraper::Node;
 
-use super::subtree::SubTree;
+use crate::misc::SimpleTree;
 
 pub struct ContextExtractor {
     // do not include those tags in the text trace
@@ -69,8 +69,8 @@ impl ContextExtractor {
 
         let mut context_before: Vec<InclusiveTextTrace> = vec![];
         let mut context_after: Vec<InclusiveTextTrace> = vec![];
-        self.flatten_tree(&tree_before, *tree_before.get_root(), &mut context_before);
-        self.flatten_tree(&tree_after, *tree_after.get_root(), &mut context_after);
+        self.flatten_tree(&tree_before, tree_before.root(), &mut context_before);
+        self.flatten_tree(&tree_after, tree_after.root(), &mut context_after);
 
         let mut context = vec![ContentHierarchy::new(0, TextTrace::empty())];
         for c in context_before {
@@ -104,9 +104,74 @@ impl ContextExtractor {
         Ok(context)
     }
 
-    fn flatten_tree(&self, tree: &SubTree, nodeid: usize, output: &mut Vec<InclusiveTextTrace>) {
+    // fn flatten_tree(&self, tree: &SubTree, nodeid: usize, output: &mut Vec<InclusiveTextTrace>) {
+    //     let node = tree.get_node(nodeid);
+    //     let node_children = tree.get_children(&nodeid);
+    //     if node_children.len() == 0 {
+    //         self.flatten_node(node, output);
+    //         return;
+    //     }
+
+    //     let node_el = node.value().as_element().unwrap();
+    //     if !BLOCK_ELEMENTS.contains(node_el.name()) {
+    //         // inline element, but why it's here with a subtree?
+    //         // this should never happen
+    //         // silent the error for now
+    //         for childid in node_children {
+    //             self.flatten_tree(tree, *childid, output);
+    //         }
+    //         return;
+    //     }
+
+    //     // block element, have to check its children
+    //     let mut line: Vec<Enum2<usize, InclusiveTextTrace>> = vec![];
+    //     for childid in node_children {
+    //         let child_ref = tree.get_node(*childid);
+    //         if let Some(child_el) = child_ref.value().as_element() {
+    //             if BLOCK_ELEMENTS.contains(child_el.name()) {
+    //                 line.push(Enum2::Type1(*childid));
+    //             } else {
+    //                 line.push(Enum2::Type2(InclusiveTextTrace::from_element(
+    //                     &child_ref,
+    //                     &self.ignored_tags,
+    //                     self.only_keep_inline_tags,
+    //                     &self.discard_tags,
+    //                 )));
+    //             }
+    //         } else {
+    //             if child_ref.value().is_text() {
+    //                 line.push(Enum2::Type2(InclusiveTextTrace::from_text(&child_ref)));
+    //             }
+    //         }
+    //     }
+
+    //     let mut flag = false;
+    //     for piece in line {
+    //         match piece {
+    //             Enum2::Type1(child_id) => {
+    //                 self.flatten_tree(tree, child_id, output);
+    //                 flag = false;
+    //             }
+    //             Enum2::Type2(text) => {
+    //                 if flag {
+    //                     output.last_mut().unwrap().0.merge(text.0);
+    //                 } else {
+    //                     output.push(text)
+    //                 }
+    //                 flag = true;
+    //             }
+    //         }
+    //     }
+    // }
+
+    fn flatten_tree(
+        &self,
+        tree: &SimpleTree<NodeRef<Node>>,
+        nodeid: usize,
+        output: &mut Vec<InclusiveTextTrace>,
+    ) {
         let node = tree.get_node(nodeid);
-        let node_children = tree.get_children(&nodeid);
+        let node_children = tree.get_children(nodeid);
         if node_children.len() == 0 {
             self.flatten_node(node, output);
             return;
@@ -240,10 +305,10 @@ impl ContextExtractor {
     fn locate_content_before_and_after<'s>(
         &self,
         element: NodeRef<'s, Node>,
-    ) -> Result<(SubTree<'s>, SubTree<'s>)> {
+    ) -> Result<(SimpleTree<NodeRef<'s, Node>>, SimpleTree<NodeRef<'s, Node>>)> {
         let mut el = element;
-        let mut tree_before = SubTree::new();
-        let mut tree_after = SubTree::new();
+        let mut tree_before = SimpleTree::new();
+        let mut tree_after = SimpleTree::new();
 
         while let Some(parent_ref) = el.parent() {
             let parent = parent_ref.value().as_element().ok_or(
@@ -260,13 +325,13 @@ impl ContextExtractor {
                 if e.id() == el.id() {
                     // this is the index
                     if !tree_before.is_empty() {
-                        tree_before.add_existing_child(node, tree_before.root);
+                        tree_before.add_child(node, tree_before.root());
                     }
                     break;
                 }
-                tree_before.add_new_child(node, e);
+                let child_id = tree_before.add_node(e);
+                tree_before.add_child(node, child_id);
             }
-            tree_before.root = node;
             el = parent_ref;
         }
 
@@ -286,7 +351,8 @@ impl ContextExtractor {
             {
                 break;
             }
-            tree_after.add_new_child(root_id, eref);
+            let child_id = tree_after.add_node(eref);
+            tree_after.add_child(root_id, child_id);
         }
 
         Ok((tree_before, tree_after))

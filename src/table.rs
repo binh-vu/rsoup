@@ -1,4 +1,4 @@
-use crate::{error::TableExtractorError, text::TextTrace};
+use crate::{context::ContentHierarchy, error::TableExtractorError, text::TextTrace};
 use hashbrown::HashMap;
 
 #[derive(Debug, Clone)]
@@ -7,6 +7,7 @@ pub struct Table {
     pub url: String,
     pub caption: String,
     pub attrs: HashMap<String, String>,
+    pub context: Vec<ContentHierarchy>,
     pub rows: Vec<Row>,
 }
 
@@ -125,6 +126,7 @@ impl Table {
             url: self.url.clone(),
             caption: self.caption.clone(),
             attrs: self.attrs.clone(),
+            context: self.context.clone(),
             rows: data,
         })
     }
@@ -172,6 +174,7 @@ impl Table {
             url: self.url.clone(),
             caption: self.caption.clone(),
             attrs: self.attrs.clone(),
+            context: self.context.clone(),
             rows: rows,
         })
     }

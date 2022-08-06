@@ -1,6 +1,7 @@
 use crate::text::TextTrace;
 
 /// Content at each level that leads to the table
+#[derive(Debug, Clone)]
 pub struct ContentHierarchy {
     // level of the heading, level 0 indicate the beginning of the document
     // but should not be used

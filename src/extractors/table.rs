@@ -1,5 +1,5 @@
 use crate::error::TableExtractorError;
-use crate::helper::convert_attrs;
+use crate::misc::convert_attrs;
 use crate::table::{Row, Table};
 use crate::{
     table::Cell,
@@ -11,21 +11,18 @@ use hashbrown::HashSet;
 use scraper::{ElementRef, Node, Selector};
 use url::Url;
 
+use super::context_v1::ContextExtractor;
 use super::Document;
-
-pub struct ExtractTableResult<'s> {
-    pub tables: Vec<Table>,
-    pub table_els: Vec<ElementRef<'s>>,
-}
 
 pub struct TableExtractor {
     ignored_tags: HashSet<String>,
     discard_tags: HashSet<String>,
     only_keep_inline_tags: bool,
+    context_extractor: ContextExtractor,
 }
 
 impl TableExtractor {
-    pub fn new() -> Self {
+    pub fn default(context_extractor: ContextExtractor) -> Self {
         let discard_tags = HashSet::from_iter(
             ["script", "style", "noscript"]
                 .into_iter()
@@ -37,6 +34,7 @@ impl TableExtractor {
             ignored_tags,
             discard_tags,
             only_keep_inline_tags: false,
+            context_extractor,
         }
     }
 
@@ -46,7 +44,8 @@ impl TableExtractor {
         doc: &'t mut Document,
         auto_span: bool,
         auto_pad: bool,
-    ) -> Result<ExtractTableResult<'t>> {
+        extract_context: bool,
+    ) -> Result<Vec<Table>> {
         let tree = &doc.html;
 
         let selector = Selector::parse("table").unwrap();
@@ -87,6 +86,12 @@ impl TableExtractor {
                 .collect::<Vec<_>>()
         }
 
+        if extract_context {
+            for i in 0..tables.len() {
+                tables[i].context = self.context_extractor.extractor_context(*table_els[i])?;
+            }
+        }
+
         let mut url = Url::parse(doc.url)?;
         let mut query = match url.query() {
             None => "table_no=".as_bytes().to_vec(),
@@ -106,7 +111,7 @@ impl TableExtractor {
             tbl.url = doc.url.to_owned();
         }
 
-        Ok(ExtractTableResult { tables, table_els })
+        Ok(tables)
     }
 
     /// Extract content of a single table
@@ -166,6 +171,7 @@ impl TableExtractor {
             url: String::new(),
             caption,
             attrs: convert_attrs(&table_el.value().attrs),
+            context: Vec::new(),
             rows,
         })
     }
