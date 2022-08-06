@@ -1,7 +1,7 @@
 use anyhow::Result;
 use hashbrown::{HashMap, HashSet};
-use scraper::{ElementRef, Html, Selector};
-use std::{ffi::OsStr, fs, path::Path};
+use scraper::{Html, Selector};
+use std::{fs, path::Path};
 use table_extractor::text::{get_text, get_text_with_trace, TextHTMLElement, TextTrace};
 
 fn get_doc() -> Result<Html> {
@@ -24,6 +24,7 @@ fn test_get_text() -> Result<()> {
 #[test]
 fn test_get_text_with_trace() -> Result<()> {
     let ignored_tags = HashSet::new();
+    let discard_tags = HashSet::new();
     let only_inline_tags = false;
 
     let doc = Html::parse_fragment("<p>What are you<b>doing </b>?</p>");
@@ -31,7 +32,8 @@ fn test_get_text_with_trace() -> Result<()> {
         get_text_with_trace(
             &doc.tree.root().first_child().unwrap(),
             &ignored_tags,
-            only_inline_tags
+            only_inline_tags,
+            &discard_tags
         ),
         TextTrace {
             text: "What are youdoing ?".to_owned(),
@@ -71,7 +73,7 @@ fn test_get_text_with_trace() -> Result<()> {
         let node = tree.root().first_child().unwrap();
         // println!("{:#?}", get_text_with_trace(&node, &ignored_tags, true));
         assert_eq!(
-            get_text_with_trace(&node, &ignored_tags, true).to_bare_html(),
+            get_text_with_trace(&node, &ignored_tags, true, &discard_tags).to_bare_html(),
             parsed_texts[i]
         );
     }

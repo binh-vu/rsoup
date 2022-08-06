@@ -1,5 +1,5 @@
 use ego_tree::{NodeRef, Tree};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashSet;
 use scraper::Node;
 
 use crate::helper::convert_attrs;
@@ -11,7 +11,7 @@ use super::{
 };
 
 /// Get text from an element as similar as possible to the rendered text.
-/// It also returns descendants of the element constituting the text.
+/// It also returns **descendants** of the element constituting the text.
 ///
 /// For how the browser rendering whitespace, see: https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model/Whitespace
 ///
@@ -32,10 +32,12 @@ use super::{
 /// * `el` - element to extract text from
 /// * `ignored_tags` - set of tags to not include in the trace
 /// * `only_inline_tags` - whether to only track inline tags
+/// * `discard_tags` - set of tags will be discarded and not included in the text
 pub fn get_text_with_trace<'s>(
     el: &'s NodeRef<Node>,
     ignored_tags: &HashSet<String>,
     only_inline_tags: bool,
+    discard_tags: &HashSet<String>,
 ) -> TextTrace {
     // create a stack-based stream of elements to simulate
     // the rendering process from left to right
@@ -56,6 +58,10 @@ pub fn get_text_with_trace<'s>(
     while let Some(node) = stream.pop() {
         match node.value() {
             Node::Element(node_el) => {
+                if discard_tags.contains(node_el.name()) {
+                    continue;
+                }
+
                 if BLOCK_ELEMENTS.contains(node_el.name()) {
                     // create a newline
                     // (the empty line will be skipped automatically)

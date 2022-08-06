@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use hashbrown::HashMap;
 use scraper::node::Attributes;
 
@@ -10,31 +8,39 @@ pub fn convert_attrs(attrs: &Attributes) -> HashMap<String, String> {
         .collect::<HashMap<_, _>>()
 }
 
-/// Represent a recursive tree
-pub trait ITree<N>
-where
-    N: Copy,
-{
-    fn get_root(&self) -> N;
-    fn get_children(&self, id: N) -> &[N];
+pub trait ITree<N> {
+    fn get_root<'s>(&'s self) -> &'s N;
+    fn get_children<'s>(&'s self, node: &'s N) -> &'s [N];
 }
 
 pub struct PreorderTraversal<'s, T, N>
 where
     T: ITree<N>,
-    N: Copy,
 {
     tree: &'s T,
-    stack: Vec<(N, usize)>,
+    stack: Vec<(&'s N, usize)>,
     inited: bool,
+}
+
+impl<'s, T, N> PreorderTraversal<'s, T, N>
+where
+    T: ITree<N>,
+{
+    pub fn new(tree: &'s T) -> Self {
+        PreorderTraversal {
+            tree,
+            stack: Vec::new(),
+            inited: false,
+        }
+    }
 }
 
 impl<'s, T, N> Iterator for PreorderTraversal<'s, T, N>
 where
     T: ITree<N>,
-    N: Copy,
+    N: 's,
 {
-    type Item = N;
+    type Item = &'s N;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -55,13 +61,52 @@ where
 
             if child_index < node_children.len() {
                 // add this child to stack
-                self.stack.push((node_children[child_index], 0));
+                self.stack.push((&node_children[child_index], 0));
                 self.stack[n1].1 += 1;
-                return Some(node_children[child_index]);
+                return Some(&node_children[child_index]);
             }
 
             // no child to return, done at this level, so we move up
             self.stack.pop();
         }
+    }
+}
+
+pub struct ChainN<I, V>
+where
+    I: Iterator<Item = V>,
+{
+    pub iterators: Vec<I>,
+    pub index: usize,
+}
+
+impl<I, V> Iterator for ChainN<I, V>
+where
+    I: Iterator<Item = V>,
+{
+    type Item = V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.index < self.iterators.len() {
+            if let Some(value) = self.iterators[self.index].next() {
+                return Some(value);
+            }
+            self.index += 1;
+        }
+        return None;
+    }
+}
+
+pub enum Enum2<A, B> {
+    Type1(A),
+    Type2(B),
+}
+
+impl<A, B> Enum2<A, B> {
+    pub fn is_type2(&self) -> bool {
+        if let Enum2::Type2(_) = self {
+            return true;
+        }
+        return false;
     }
 }

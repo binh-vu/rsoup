@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 
-use crate::helper::ITree;
+use crate::helper::{ChainN, ITree, PreorderTraversal};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextTrace {
@@ -19,9 +19,16 @@ pub struct TextHTMLElement {
 }
 
 impl TextTrace {
-    pub fn new() -> TextTrace {
+    pub fn empty() -> TextTrace {
         TextTrace {
             text: String::new(),
+            trace: Vec::new(),
+        }
+    }
+
+    pub fn from_str(text: &str) -> TextTrace {
+        TextTrace {
+            text: text.to_owned(),
             trace: Vec::new(),
         }
     }
@@ -34,8 +41,17 @@ impl TextTrace {
         self.text.push_str(&text.text);
     }
 
-    pub fn preorder_traversal<'s>(&'s self) -> TreesPreorderTraversal<'s> {
-        TreesPreorderTraversal::new(&self.trace)
+    pub fn preorder_traversal<'s>(
+        &'s self,
+    ) -> ChainN<PreorderTraversal<'s, TextHTMLElement, TextHTMLElement>, &TextHTMLElement> {
+        ChainN {
+            iterators: self
+                .trace
+                .iter()
+                .map(|el| PreorderTraversal::new(el))
+                .collect::<Vec<_>>(),
+            index: 0,
+        }
     }
 
     pub fn to_bare_html(&self) -> String {
@@ -112,15 +128,15 @@ impl TextHTMLElement {
     }
 }
 
-// impl ITree<&TextHTMLElement> for TextHTMLElement {
-//     fn get_root(&self) -> &TextHTMLElement {
-//         self
-//     }
+impl ITree<TextHTMLElement> for TextHTMLElement {
+    fn get_root<'s>(&'s self) -> &'s TextHTMLElement {
+        self
+    }
 
-//     fn get_children(&self, node: &TextHTMLElement) -> &[&TextHTMLElement] {
-//         return &node.children;
-//     }
-// }
+    fn get_children<'s>(&'s self, node: &'s TextHTMLElement) -> &'s [TextHTMLElement] {
+        return &node.children;
+    }
+}
 
 pub struct TreesPreorderTraversal<'s> {
     trees: &'s [TextHTMLElement],

@@ -1,8 +1,4 @@
-use std::borrow::Cow;
-
 use ego_tree::{NodeRef, Tree};
-use hashbrown::{HashMap, HashSet};
-use phf::{phf_set, Set};
 use regex::Regex;
 use scraper::Node;
 

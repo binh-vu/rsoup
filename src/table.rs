@@ -149,7 +149,7 @@ impl Table {
             rowspan: 1,
             colspan: 1,
             attrs: HashMap::new(),
-            value: TextTrace::new(),
+            value: TextTrace::empty(),
             html: "".to_owned(),
         };
 

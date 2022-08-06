@@ -7,7 +7,20 @@ pub struct ContentHierarchy {
     pub level: usize,
     // title of the level (header)
     pub heading: TextTrace,
-    // partially HTML content, normalized <a>, <b>, <i> tags (breaklines or block text such as div, p are converted to line breaks)
-    // other HTML containing content such as <table>, <img>, <video>, <audio> is kept as empty tag.
+    // content of each level (with the trace), the trace includes information
+    // of the containing element
     pub content_before: Vec<TextTrace>,
+    // only non empty if this is at the same level of the table (lowest level)
+    pub content_after: Vec<TextTrace>,
+}
+
+impl ContentHierarchy {
+    pub fn new(level: usize, heading: TextTrace) -> Self {
+        ContentHierarchy {
+            level,
+            heading,
+            content_before: Vec::new(),
+            content_after: Vec::new(),
+        }
+    }
 }

@@ -12,7 +12,7 @@ pub use self::trace::{TextHTMLElement, TextTrace};
 /// list of inline elements that will be rendered in same line except <br> tags
 /// https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elements
 /// don't use it for now
-static INLINE_ELEMENTS: Set<&'static str> = phf_set! {
+pub static INLINE_ELEMENTS: Set<&'static str> = phf_set! {
     "a", "abbr", "acronym", "audio", "b",
     "bdi", "bdo", "big", "button", "cite", "canvas",
     "code", "data", "datalist", "del", "dfn", "em",
@@ -25,7 +25,7 @@ static INLINE_ELEMENTS: Set<&'static str> = phf_set! {
 };
 
 /// list of block elements
-static BLOCK_ELEMENTS: Set<&'static str> = phf_set! {
+pub static BLOCK_ELEMENTS: Set<&'static str> = phf_set! {
     "body", "br", "address", "article", "aside",
     "blockquote", "details", "dialog", "dd", "div",
     "dl", "dt", "fieldset", "figcaption", "figure",
