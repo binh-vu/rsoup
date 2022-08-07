@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Parser Tests</title>
+  </head>
+  <body>
+    <h3>Test:get-text</h3>
+    <div class="test:get-text" style="border: 1px solid black">
+      <p>What are you<b>doing </b>?</p>
+    </div>
+    <div class="test:get-text" style="border: 1px solid black">
+      <p>Date: Today</p>
+      
+      <!-- this empty line will be skipped -->
+      <p></p>
+
+      <p>Time: now</p>
+
+      Hello world
+
+      !
+
+      <p>What are you<b>doing </b>?</p>
+      ...
+      <p> I'm <i> sleeping</i></p>
+
+      This is <span>where the conversation</span><span>end</span>.
+
+      <span>or not?</span>
+    </div>
+    <div class="test:get-text" style="border: 1px solid black">
+      <p>What are you<b> doing </b>?</p>
+    </div>
+    <h3>Test:nested-select</h3>
+    <div class="test:nested-select" style="border: 1px solid black">
+      <div id="level 1">
+        level 1
+        <div id="level 2-1">level 2.1</div>
+        <div id="level 2-2">level 2.2</div>
+      </div>
+    </div>
+  </body>
+</html>
