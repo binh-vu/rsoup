@@ -1,11 +1,12 @@
 use hashbrown::HashMap;
+use std::fmt;
 
 use crate::misc::{ITree, SimpleTree};
 use pyo3::prelude::*;
 
 pub const PSEUDO_TAG: &str = "";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 #[pyclass(module = "table_extractor.table_extractor")]
 pub struct RichText {
     #[pyo3(get)]
@@ -31,6 +32,8 @@ pub struct RichTextElement {
 }
 
 impl RichText {
+    // Create an empty rich text, you should not use this function directly to
+    // build a rich text as the tree has the PSEUDO_TAG.
     pub fn empty() -> RichText {
         RichText {
             text: String::new(),
@@ -59,17 +62,44 @@ impl RichText {
         self.element.get_root().tag.as_str()
     }
 
-    pub fn to_bare_html(&self) -> String {
+    pub fn is_valid(&self) -> bool {
+        let root = self.element.get_root();
+        let mut is_valid = root.start == 0 && root.end == self.text.len();
+
+        for node_id in self.element.iter_id_preorder() {
+            let node = self.element.get_node(*node_id);
+            is_valid = is_valid && node.start <= node.end;
+            let child_ids = self.element.get_child_ids(*node_id);
+            for (i, child_id) in child_ids.iter().enumerate() {
+                let child = self.element.get_node(*child_id);
+                is_valid = is_valid && node.start <= child.start && node.end >= child.end;
+                if i > 0 {
+                    let prev_child = self.element.get_node(child_ids[i - 1]);
+                    is_valid = is_valid && child.start >= prev_child.end;
+                }
+            }
+        }
+        is_valid
+    }
+
+    pub fn to_html(&self, render_outer_element: bool, render_element_attrs: bool) -> String {
         let mut tokens = Vec::<&str>::with_capacity(2 + self.element.len());
         // keep track of pending tags that need to be closed
         let mut closing_tag_ids = Vec::<usize>::new();
         let mut pointer = 0;
+        let mut it = self.element.iter_id_preorder();
+        let mut string_pools = Vec::new();
+        let mut pending_ops = Vec::new();
 
-        for token_id in self.element.iter_id_preorder() {
+        if !render_outer_element {
+            it.next();
+        }
+
+        for token_id in it {
             let token = self.element.get_node(*token_id);
             // println!(
             //     "------before\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
-            //     pointer, token, tokens, closing_tags
+            //     pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
             // );
 
             while let Some(closing_tag_id) = closing_tag_ids.last() {
@@ -95,7 +125,7 @@ impl RichText {
                     tokens.push("</");
                     tokens.push(&closing_tag.tag);
                     tokens.push(">");
-                    pointer = token.end;
+                    pointer = closing_tag.end;
                     closing_tag_ids.pop();
                 } else {
                     break;
@@ -105,6 +135,17 @@ impl RichText {
             tokens.push(&self.text[pointer..token.start]);
             tokens.push("<");
             tokens.push(&token.tag);
+            if render_element_attrs {
+                for (name, value) in token.attrs.iter() {
+                    tokens.push(" ");
+                    tokens.push(name);
+                    tokens.push("=\"");
+                    string_pools.push(value.replace("\"", "\\\""));
+                    pending_ops.push(tokens.len());
+                    tokens.push("");
+                    tokens.push("\"");
+                }
+            }
             tokens.push(">");
 
             pointer = token.start;
@@ -112,7 +153,7 @@ impl RichText {
 
             // println!(
             //     "------after\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
-            //     pointer, token, tokens, closing_tags
+            //     pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
             // );
         }
 
@@ -125,6 +166,12 @@ impl RichText {
             pointer = closing_tag.end;
         }
         tokens.push(&self.text[pointer..]);
+
+        // update tokens
+        for (i, j) in pending_ops.into_iter().enumerate() {
+            tokens[j] = &string_pools[i];
+        }
+
         tokens.join("")
     }
 }
@@ -145,5 +192,17 @@ impl RichTextElement {
 
     fn has_attr(&self, name: &str) -> PyResult<bool> {
         Ok(self.attrs.contains_key(name))
+    }
+}
+
+impl fmt::Display for RichText {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "`{}`", self.to_html(false, false))
+    }
+}
+
+impl fmt::Debug for RichText {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "`{}`", self.to_html(true, false))
     }
 }

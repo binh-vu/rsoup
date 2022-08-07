@@ -5,7 +5,7 @@ use super::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
 pub struct SimpleTree<N> {
     root: usize,
     nodes: Vec<N>,
-    node2children: Vec<Vec<usize>>,
+    pub node2children: Vec<Vec<usize>>,
 }
 
 impl<N> SimpleTree<N> {
@@ -95,6 +95,25 @@ impl<N> SimpleTree<N> {
     #[inline]
     pub fn len(&self) -> usize {
         self.nodes.len()
+    }
+
+    pub fn print_structure(&self) {
+        for (i, children) in self.node2children.iter().enumerate() {
+            println!("{} -> {:?}", i, children);
+        }
+    }
+
+    pub fn merge_subtree(&mut self, parent_id: usize, mut subtree: SimpleTree<N>) {
+        let id_offset = self.nodes.len();
+        self.nodes.extend(subtree.nodes.into_iter());
+        // update ids of children in node => children in the subtree
+        for children in subtree.node2children.iter_mut() {
+            for child_id in children {
+                *child_id += id_offset;
+            }
+        }
+        self.node2children.extend(subtree.node2children.into_iter());
+        self.node2children[parent_id].push(subtree.root + id_offset);
     }
 
     /// Merge direct children of root of the subtree into this tree

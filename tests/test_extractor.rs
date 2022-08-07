@@ -25,8 +25,8 @@ fn test_context_extractor() -> Result<()> {
     let elements = doc.select(&selector).collect::<Vec<_>>();
     assert_eq!(elements.len(), 1);
 
-    let context = extractor.extractor_context(*elements[0]);
-    println!("{:?}", context);
+    let context = extractor.extractor_context(*elements[0])?;
+    println!("{:#?}", context[0].content_before);
 
     Ok(())
 }

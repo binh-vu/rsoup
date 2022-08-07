@@ -5,7 +5,7 @@ pub mod line;
 pub mod rich_text;
 use phf::{phf_set, Set};
 
-pub use self::get_rich_text::get_rich_text;
+pub use self::get_rich_text::{get_rich_text, get_rich_text_from_seq};
 pub use self::get_text_v2::get_text;
 pub use self::rich_text::{RichText, RichTextElement};
 

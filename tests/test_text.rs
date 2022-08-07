@@ -80,10 +80,12 @@ fn test_get_text_with_trace() -> Result<()> {
     for (i, doc) in docs.iter().enumerate() {
         let tree = Html::parse_fragment(doc).tree;
         let node = tree.root().first_child().unwrap();
-        // println!("{:#?}", get_text_with_trace(&node, &ignored_tags, true));
+
+        // println!("{:#?}", node);
         assert_eq!(
-            get_rich_text(&node, &ignored_tags, true, &discard_tags).to_bare_html(),
-            format!("{}{}{}", "<html>", parsed_texts[i], "</html>")
+            get_rich_text(&node, &ignored_tags, true, &discard_tags).to_html(false, false),
+            // format!("{}{}{}", "<html>", parsed_texts[i], "</html>")
+            parsed_texts[i]
         );
     }
 

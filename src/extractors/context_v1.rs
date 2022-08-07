@@ -6,6 +6,7 @@ use crate::{
 };
 
 use crate::misc::SimpleTree;
+use crate::text::get_rich_text_from_seq;
 use anyhow::Result;
 use ego_tree::NodeRef;
 use hashbrown::{HashMap, HashSet};
@@ -122,10 +123,9 @@ impl ContextExtractor {
     ) -> Result<Vec<ContentHierarchy>> {
         let (tree_before, tree_after) = self.locate_content_before_and_after(table_el)?;
 
-        // println!("tree {:?}", tree_before);
-
         let mut context_before: Vec<RichText> = vec![];
         let mut context_after: Vec<RichText> = vec![];
+
         self.flatten_tree(&tree_before, tree_before.get_root_id(), &mut context_before);
         self.flatten_tree(&tree_after, tree_after.get_root_id(), &mut context_after);
 
@@ -186,43 +186,50 @@ impl ContextExtractor {
         }
 
         // block element, have to check its children
-        let mut line: Vec<Enum2<usize, RichText>> = vec![];
+        let mut line: Vec<Enum2<usize, NodeRef<Node>>> = vec![];
         for childid in node_children {
             let child_ref = tree.get_node(*childid);
             if let Some(child_el) = child_ref.value().as_element() {
                 if BLOCK_ELEMENTS.contains(child_el.name()) {
                     line.push(Enum2::Type1(*childid));
                 } else {
-                    line.push(Enum2::Type2(get_rich_text(
-                        &child_ref,
-                        &self.ignored_tags,
-                        self.only_keep_inline_tags,
-                        &self.discard_tags,
-                    )));
+                    line.push(Enum2::Type2(*child_ref));
                 }
             } else {
-                if let Some(text) = child_ref.value().as_text() {
-                    line.push(Enum2::Type2(RichText::from_str(text)));
+                if child_ref.value().is_text() {
+                    line.push(Enum2::Type2(*child_ref));
                 }
             }
         }
 
-        let mut flag = false;
+        let mut lst = vec![];
         for piece in line {
             match piece {
                 Enum2::Type1(child_id) => {
-                    self.flatten_tree(tree, child_id, output);
-                    flag = false;
-                }
-                Enum2::Type2(text) => {
-                    if flag {
-                        merge_inline_rich_texts(output.last_mut().unwrap(), text);
-                    } else {
-                        output.push(text)
+                    if lst.len() > 0 {
+                        output.push(get_rich_text_from_seq(
+                            lst,
+                            &self.ignored_tags,
+                            self.only_keep_inline_tags,
+                            &self.discard_tags,
+                        ));
+                        lst = vec![];
                     }
-                    flag = true;
+                    self.flatten_tree(tree, child_id, output);
+                }
+                Enum2::Type2(node_) => {
+                    lst.push(node_);
                 }
             }
+        }
+        if lst.len() > 0 {
+            output.push(get_rich_text_from_seq(
+                lst,
+                &self.ignored_tags,
+                self.only_keep_inline_tags,
+                &self.discard_tags,
+            ));
+            lst = vec![];
         }
     }
 
@@ -245,43 +252,49 @@ impl ContextExtractor {
                     return;
                 }
 
-                // block element, have to check its children
-                let mut line: Vec<Enum2<NodeRef<Node>, RichText>> = vec![];
+                let mut line: Vec<Enum2<NodeRef<Node>, NodeRef<Node>>> = vec![];
                 for child_ref in node_ref.children() {
                     if let Some(child_el) = child_ref.value().as_element() {
                         if BLOCK_ELEMENTS.contains(child_el.name()) {
                             line.push(Enum2::Type1(child_ref));
                         } else {
-                            line.push(Enum2::Type2(get_rich_text(
-                                &child_ref,
-                                &self.ignored_tags,
-                                self.only_keep_inline_tags,
-                                &self.discard_tags,
-                            )));
+                            line.push(Enum2::Type2(child_ref));
                         }
                     } else {
-                        if let Some(text) = child_ref.value().as_text() {
-                            line.push(Enum2::Type2(RichText::from_str(text)));
+                        if child_ref.value().is_text() {
+                            line.push(Enum2::Type2(child_ref));
                         }
                     }
                 }
 
-                let mut flag = false;
+                let mut lst = vec![];
                 for piece in line {
                     match piece {
                         Enum2::Type1(child_ref) => {
+                            if lst.len() > 0 {
+                                output.push(get_rich_text_from_seq(
+                                    lst,
+                                    &self.ignored_tags,
+                                    self.only_keep_inline_tags,
+                                    &self.discard_tags,
+                                ));
+                                lst = vec![];
+                            }
                             self.flatten_node(&child_ref, output);
-                            flag = false;
                         }
                         Enum2::Type2(text) => {
-                            if flag {
-                                merge_inline_rich_texts(output.last_mut().unwrap(), text);
-                            } else {
-                                output.push(text)
-                            }
-                            flag = true;
+                            lst.push(text);
                         }
                     }
+                }
+                if lst.len() > 0 {
+                    output.push(get_rich_text_from_seq(
+                        lst,
+                        &self.ignored_tags,
+                        self.only_keep_inline_tags,
+                        &self.discard_tags,
+                    ));
+                    lst = vec![];
                 }
             }
             _ => {}
@@ -307,11 +320,6 @@ impl ContextExtractor {
         let mut tree_before = SimpleTree::empty();
         let mut tree_after = SimpleTree::empty();
 
-        println!(">> begin - {:?}", element.value().as_element());
-        println!(
-            ">> parent - {:?}",
-            element.parent().unwrap().value().as_element()
-        );
         while let Some(parent_ref) = el.parent() {
             let parent = parent_ref.value().as_element().ok_or(
                 TableExtractorError::InvalidHTMLStructureError(
@@ -322,15 +330,10 @@ impl ContextExtractor {
                 break;
             }
 
-            println!(">> {:?}", parent.name());
-
             let node = tree_before.add_node(parent_ref);
             for e in parent_ref.children() {
                 if e.id() == el.id() {
                     // this is the index
-                    if !tree_before.is_empty() {
-                        tree_before.add_child(node, tree_before.get_root_id());
-                    }
                     break;
                 }
                 let child_id = tree_before.add_node(e);
@@ -361,45 +364,4 @@ impl ContextExtractor {
 
         Ok((tree_before, tree_after))
     }
-}
-
-fn merge_inline_rich_texts2(rich_texts: Vec<RichText>) -> RichText {}
-
-// Merge texts in the same line following the same whitespace handling rule in the browser.
-fn merge_inline_rich_texts(this: &mut RichText, mut other: RichText) {
-    // handling the leading whitespaces
-    if this.text.trim() == "" {
-        this.text = other.text;
-        this.element = other.element;
-        return;
-    }
-
-    // prepare this to store multiple rich texts
-    // by ensuring the root element is always a pseudo element
-    {
-        println!(">> merge_rich_text - {:?}", this);
-        let root = this.element.get_root_mut();
-        if root.tag != PSEUDO_TAG {
-            // we have to add a pseudo tag
-            let new_root = this.element.add_node(RichTextElement {
-                tag: PSEUDO_TAG.to_owned(),
-                start: 0,
-                end: this.text.len() + other.text.len(),
-                attrs: HashMap::new(),
-            });
-            this.element.add_child(new_root, this.element.get_root_id());
-        } else {
-            root.end = this.text.len() + other.text.len();
-        }
-    }
-
-    // now shift the other text by this offset
-    let offset = this.text.len();
-    for n in other.element.iter_mut() {
-        n.start += offset;
-        n.end += offset;
-    }
-
-    this.element
-        .merge_subtree_no_root(this.element.get_root_id(), other.element);
 }

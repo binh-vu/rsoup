@@ -42,13 +42,11 @@ pub fn get_rich_text<'s>(
     // create a stack-based stream of elements to simulate
     // the rendering process from left to right
     let mut stream = el.children().rev().collect::<Vec<_>>();
-    let mut paragraph = Paragraph::with_capacity(stream.len());
-    let mut line = Line::with_capacity(stream.len());
-
     // create a marker to breakline
     let tree = Tree::new(Node::Document);
     let bl_marker = tree.root();
 
+    // create a marker to exit element
     let tree = Tree::new(Node::Fragment);
     let el_marker = tree.root();
 
@@ -68,6 +66,61 @@ pub fn get_rich_text<'s>(
         }
     };
     let mut element = SimpleTree::new(tmp);
+
+    get_rich_text_from_stream(
+        stream,
+        element,
+        bl_marker,
+        el_marker,
+        ignored_tags,
+        only_inline_tags,
+        discard_tags,
+    )
+}
+
+pub fn get_rich_text_from_seq(
+    mut seq: Vec<NodeRef<Node>>,
+    ignored_tags: &HashSet<String>,
+    only_inline_tags: bool,
+    discard_tags: &HashSet<String>,
+) -> RichText {
+    // create a marker to breakline
+    let tree = Tree::new(Node::Document);
+    let bl_marker = tree.root();
+
+    // create a marker to exit element
+    let tree = Tree::new(Node::Fragment);
+    let el_marker = tree.root();
+
+    let mut element = SimpleTree::new(RichTextElement {
+        tag: PSEUDO_TAG.to_owned(),
+        start: 0,
+        end: 0,
+        attrs: HashMap::new(),
+    });
+
+    get_rich_text_from_stream(
+        seq,
+        element,
+        bl_marker,
+        el_marker,
+        ignored_tags,
+        only_inline_tags,
+        discard_tags,
+    )
+}
+
+fn get_rich_text_from_stream<'s>(
+    mut stream: Vec<NodeRef<'s, Node>>,
+    mut element: SimpleTree<RichTextElement>,
+    bl_marker: NodeRef<'s, Node>,
+    el_marker: NodeRef<'s, Node>,
+    ignored_tags: &HashSet<String>,
+    only_inline_tags: bool,
+    discard_tags: &HashSet<String>,
+) -> RichText {
+    let mut paragraph = Paragraph::with_capacity(stream.len());
+    let mut line = Line::with_capacity(stream.len());
     let mut stack_ptrs = vec![(0, element.get_root_id())];
 
     while let Some(node) = stream.pop() {
