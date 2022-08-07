@@ -1,5 +1,4 @@
 use super::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
-use pyo3::prelude::*;
 
 /// A simple vector-based tree. Nodes are ordered based on their insertion order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,7 +99,7 @@ impl<N> SimpleTree<N> {
 
     /// Merge direct children of root of the subtree into this tree
     pub fn merge_subtree_no_root(&mut self, parent_id: usize, mut subtree: SimpleTree<N>) {
-        let mut id_offset = self.nodes.len();
+        let id_offset = self.nodes.len();
         let subtree_root = subtree.get_root_id();
 
         let mut it = subtree.nodes.into_iter();
@@ -111,7 +110,7 @@ impl<N> SimpleTree<N> {
         self.nodes.extend(it);
 
         // update ids of children in node => children in the subtree
-        for (i, children) in subtree.node2children.iter_mut().enumerate() {
+        for children in subtree.node2children.iter_mut() {
             for child_id in children {
                 if *child_id > subtree_root {
                     *child_id += id_offset - 1;

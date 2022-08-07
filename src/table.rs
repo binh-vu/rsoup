@@ -3,7 +3,7 @@ use hashbrown::HashMap;
 use pyo3::prelude::*;
 
 #[derive(Debug, Clone)]
-#[pyclass]
+#[pyclass(module = "table_extractor.table_extractor")]
 pub struct Table {
     pub id: String,
     pub url: String,
@@ -14,14 +14,14 @@ pub struct Table {
 }
 
 #[derive(Debug, Clone)]
-#[pyclass]
+#[pyclass(module = "table_extractor.table_extractor")]
 pub struct Row {
     pub cells: Vec<Cell>,
     pub attrs: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
-#[pyclass]
+#[pyclass(module = "table_extractor.table_extractor")]
 pub struct Cell {
     pub is_header: bool,
     pub rowspan: u16,

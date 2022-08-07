@@ -15,7 +15,7 @@ use url::Url;
 use super::context_v1::ContextExtractor;
 use super::Document;
 
-#[pyclass]
+#[pyclass(module = "table_extractor.table_extractor")]
 pub struct TableExtractor {
     ignored_tags: HashSet<String>,
     discard_tags: HashSet<String>,
@@ -33,10 +33,10 @@ impl TableExtractor {
         only_keep_inline_tags = "true"
     )]
     pub fn new(
+        context_extractor: ContextExtractor,
         ignored_tags: Option<Vec<&str>>,
         discard_tags: Option<Vec<&str>>,
         only_keep_inline_tags: bool,
-        context_extractor: ContextExtractor,
     ) -> Self {
         let discard_tags_ = HashSet::from_iter(
             discard_tags

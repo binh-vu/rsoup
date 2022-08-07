@@ -13,7 +13,7 @@ use pyo3::prelude::*;
 use scraper::Node;
 
 #[derive(Clone)]
-#[pyclass]
+#[pyclass(module = "table_extractor.table_extractor")]
 pub struct ContextExtractor {
     // do not include those tags in the rich text
     ignored_tags: HashSet<String>,

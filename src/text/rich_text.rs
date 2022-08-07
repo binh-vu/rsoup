@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 pub const PSEUDO_TAG: &str = "";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[pyclass]
+#[pyclass(module = "table_extractor.table_extractor")]
 pub struct RichText {
     #[pyo3(get)]
     pub text: String,
@@ -19,7 +19,7 @@ pub struct RichText {
 
 /// Represent an html element.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[pyclass]
+#[pyclass(module = "table_extractor.table_extractor")]
 pub struct RichTextElement {
     #[pyo3(get)]
     pub tag: String,

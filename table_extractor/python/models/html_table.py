@@ -2,7 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import asdict, dataclass
 from operator import itemgetter
-from table_extractor.models.context import ContentHierarchy
+from table_extractor.python.models.context import ContentHierarchy
 
 import pandas as pd
 from typing import List, Dict, Optional
