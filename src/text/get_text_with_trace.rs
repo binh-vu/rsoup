@@ -1,12 +1,12 @@
 use ego_tree::{NodeRef, Tree};
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use scraper::Node;
 
-use crate::misc::convert_attrs;
+use crate::misc::{convert_attrs, SimpleTree};
 
 use super::{
     line::{Line, Paragraph},
-    trace::{TextHTMLElement, TextTrace},
+    rich_text::{RichText, RichTextElement, PSEUDO_TAG},
     BLOCK_ELEMENTS, INLINE_ELEMENTS,
 };
 
@@ -33,12 +33,12 @@ use super::{
 /// * `ignored_tags` - set of tags to not include in the trace
 /// * `only_inline_tags` - whether to only track inline tags
 /// * `discard_tags` - set of tags will be discarded and not included in the text
-pub fn get_text_with_trace<'s>(
+pub fn get_rich_text<'s>(
     el: &'s NodeRef<Node>,
     ignored_tags: &HashSet<String>,
     only_inline_tags: bool,
     discard_tags: &HashSet<String>,
-) -> TextTrace {
+) -> RichText {
     // create a stack-based stream of elements to simulate
     // the rendering process from left to right
     let mut stream = el.children().rev().collect::<Vec<_>>();
@@ -52,8 +52,23 @@ pub fn get_text_with_trace<'s>(
     let tree = Tree::new(Node::Fragment);
     let el_marker = tree.root();
 
-    let mut elements = Vec::<TextHTMLElement>::new();
-    let mut stack_ptrs = vec![];
+    let tmp = if let Some(el_) = el.value().as_element() {
+        RichTextElement {
+            tag: el_.name().to_owned(),
+            start: 0,
+            end: 0,
+            attrs: convert_attrs(&el_.attrs),
+        }
+    } else {
+        RichTextElement {
+            tag: PSEUDO_TAG.to_owned(),
+            start: 0,
+            end: 0,
+            attrs: HashMap::new(),
+        }
+    };
+    let mut element = SimpleTree::new(tmp);
+    let mut stack_ptrs = vec![(0, element.get_root_id())];
 
     while let Some(node) = stream.pop() {
         match node.value() {
@@ -78,15 +93,15 @@ pub fn get_text_with_trace<'s>(
                     // enter this element and track it
                     // due to leading space of element will be moved outside, we have to keep
                     // track of the token index (store that in start), and use end to keep track of start
-                    let text_el = TextHTMLElement {
+                    let text_el = RichTextElement {
                         tag: node_el.name().to_string(),
                         start: paragraph.tokens.len() + line.tokens.len(),
                         end: paragraph.len() + line.len(),
                         attrs: convert_attrs(&node_el.attrs),
-                        children: Vec::new(),
                     };
-
-                    stack_ptrs.push((stream.len(), text_el));
+                    let node_id = element.add_node(text_el);
+                    element.add_child(stack_ptrs.last().unwrap().1, node_id);
+                    stack_ptrs.push((stream.len(), node_id));
 
                     // put a marker to remember when to exit the element
                     stream.push(el_marker);
@@ -112,9 +127,9 @@ pub fn get_text_with_trace<'s>(
             Node::Fragment => {
                 // i don't know when we may have a doc fragment except the marker we put here intentionally
                 // so if it's not our marker, we skip it
-                if stack_ptrs.len() > 0 && stream.len() == stack_ptrs.last().unwrap().0 {
+                if stream.len() == stack_ptrs.last().unwrap().0 {
                     // this is our marker, we exit the current element
-                    let mut text_el = stack_ptrs.pop().unwrap().1;
+                    let mut text_el = element.get_node_mut(stack_ptrs.pop().unwrap().1);
 
                     // here we re-adjust the range of the element
                     // as previous we use the index of token not index of character
@@ -136,12 +151,6 @@ pub fn get_text_with_trace<'s>(
                     };
                     text_el.start = start_pos;
                     text_el.end = paragraph.len() + line.len();
-
-                    if stack_ptrs.len() == 0 {
-                        elements.push(text_el);
-                    } else {
-                        stack_ptrs.last_mut().unwrap().1.children.push(text_el);
-                    }
                 }
             }
             _ => {
@@ -151,8 +160,8 @@ pub fn get_text_with_trace<'s>(
     }
 
     paragraph.append(&line);
-    TextTrace {
-        text: paragraph.to_string(),
-        trace: elements,
-    }
+    let text = paragraph.to_string();
+    element.get_root_mut().end = text.len();
+
+    RichText { text, element }
 }

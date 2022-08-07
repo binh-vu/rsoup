@@ -1,20 +1,26 @@
 use hashbrown::HashMap;
 
-use crate::misc::{ChainN, ITree, PreorderTraversal};
-use pyo3::{prelude::*, types::PyString};
+use crate::misc::{ITree, SimpleTree};
+use pyo3::prelude::*;
+
+pub const PSEUDO_TAG: &str = "";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[pyclass(module = "table_extractor.text")]
-pub struct TextTrace {
+#[pyclass]
+pub struct RichText {
     #[pyo3(get)]
     pub text: String,
-    // html elements are stored in order
-    pub trace: Vec<TextHTMLElement>,
+    // html elements creating this text, the root of the tree
+    // is a pseudo-element, most often, it will be the html element containing
+    // the text, but if we are dealing with a text node, tag will be empty
+    // or after we merge, the tag will be empty
+    pub element: SimpleTree<RichTextElement>,
 }
 
+/// Represent an html element.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[pyclass(module = "table_extractor.text")]
-pub struct TextHTMLElement {
+#[pyclass]
+pub struct RichTextElement {
     #[pyo3(get)]
     pub tag: String,
     #[pyo3(get)]
@@ -22,57 +28,43 @@ pub struct TextHTMLElement {
     #[pyo3(get)]
     pub end: usize,
     pub attrs: HashMap<String, String>,
-    pub children: Vec<TextHTMLElement>,
 }
 
-impl TextTrace {
-    pub fn empty() -> TextTrace {
-        TextTrace {
+impl RichText {
+    pub fn empty() -> RichText {
+        RichText {
             text: String::new(),
-            trace: Vec::new(),
+            element: SimpleTree::empty(),
         }
     }
 
-    pub fn from_str(text: &str) -> TextTrace {
-        TextTrace {
+    pub fn from_str(text: &str) -> RichText {
+        RichText {
             text: text.to_owned(),
-            trace: Vec::new(),
+            element: SimpleTree::empty(),
         }
     }
 
-    pub fn merge(&mut self, text: TextTrace) {
-        for mut el in text.trace {
-            el.shift(self.text.len());
-            self.trace.push(el);
-        }
-        self.text.push_str(&text.text);
-    }
-
-    pub fn preorder_traversal<'s>(
-        &'s self,
-    ) -> ChainN<PreorderTraversal<'s, TextHTMLElement, TextHTMLElement>, &TextHTMLElement> {
-        ChainN {
-            iterators: self
-                .trace
-                .iter()
-                .map(|el| PreorderTraversal::new(el))
-                .collect::<Vec<_>>(),
-            index: 0,
-        }
+    pub fn get_tag(&self) -> &str {
+        self.element.get_root().tag.as_str()
     }
 
     pub fn to_bare_html(&self) -> String {
-        let mut tokens = Vec::<&str>::with_capacity(2 + self.trace.len());
-        let mut closing_tags = Vec::<&TextHTMLElement>::new();
+        let mut tokens = Vec::<&str>::with_capacity(2 + self.element.len());
+        // keep track of pending tags that need to be closed
+        let mut closing_tag_ids = Vec::<usize>::new();
         let mut pointer = 0;
 
-        for token in self.preorder_traversal() {
+        for token_id in self.element.iter_id_preorder() {
+            let token = self.element.get_node(*token_id);
             // println!(
             //     "------before\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
             //     pointer, token, tokens, closing_tags
             // );
 
-            while let Some(closing_tag) = closing_tags.last() {
+            while let Some(closing_tag_id) = closing_tag_ids.last() {
+                let closing_tag = self.element.get_node(*closing_tag_id);
+
                 if closing_tag.end <= token.start {
                     // this tag is closed
                     if token.start == token.end {
@@ -80,10 +72,11 @@ impl TextTrace {
                         // if not, we can continue to closing tag
                         // if yes, we break here.
                         // and it only happens when its a direct children
-                        if closing_tag
-                            .children
+                        if self
+                            .element
+                            .get_child_ids_ref(closing_tag_id)
                             .iter()
-                            .any(|child| std::ptr::eq(child, token))
+                            .any(|child_id| child_id == token_id)
                         {
                             break;
                         }
@@ -93,7 +86,7 @@ impl TextTrace {
                     tokens.push(&closing_tag.tag);
                     tokens.push(">");
                     pointer = token.end;
-                    closing_tags.pop();
+                    closing_tag_ids.pop();
                 } else {
                     break;
                 }
@@ -105,7 +98,7 @@ impl TextTrace {
             tokens.push(">");
 
             pointer = token.start;
-            closing_tags.push(token);
+            closing_tag_ids.push(*token_id);
 
             // println!(
             //     "------after\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
@@ -113,7 +106,8 @@ impl TextTrace {
             // );
         }
 
-        for closing_tag in closing_tags.iter().rev() {
+        for closing_tag_id in closing_tag_ids.iter().rev() {
+            let closing_tag = self.element.get_node(*closing_tag_id);
             tokens.push(&self.text[pointer..closing_tag.end]);
             tokens.push("</");
             tokens.push(&closing_tag.tag);
@@ -126,40 +120,20 @@ impl TextTrace {
 }
 
 #[pymethods]
-impl TextTrace {
+impl RichText {
     #[getter]
     fn text(&self) -> PyResult<&String> {
         Ok(&self.text)
     }
 }
 
-impl TextHTMLElement {
-    pub fn shift(&mut self, offset: usize) {
-        self.start += offset;
-        self.end += offset;
-        for child in self.children.iter_mut() {
-            child.shift(offset);
-        }
-    }
-}
-
 #[pymethods]
-impl TextHTMLElement {
+impl RichTextElement {
     fn get_attr(&self, name: &str) -> PyResult<Option<&str>> {
         Ok(self.attrs.get(name).map(|s| s.as_str()))
     }
 
     fn has_attr(&self, name: &str) -> PyResult<bool> {
         Ok(self.attrs.contains_key(name))
-    }
-}
-
-impl ITree<TextHTMLElement> for TextHTMLElement {
-    fn get_root_<'s>(&'s self) -> &'s TextHTMLElement {
-        self
-    }
-
-    fn get_children_<'s>(&'s self, node: &'s TextHTMLElement) -> &'s [TextHTMLElement] {
-        return &node.children;
     }
 }

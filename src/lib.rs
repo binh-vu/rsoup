@@ -10,18 +10,13 @@ pub mod misc;
 pub mod table;
 pub mod text;
 
-pub fn rs_square(x: i32) -> i32 {
-    x * x
-}
-
-/// square of a number
-#[pyfunction]
-fn square(x: f64) -> f64 {
-    x * x
-}
-
 #[pymodule]
 fn table_extractor(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(square, m)?)?;
+    m.add_class::<self::table::Table>()?;
+    m.add_class::<self::extractors::table::TableExtractor>()?;
+    m.add_class::<self::extractors::context_v1::ContextExtractor>()?;
+    m.add_class::<self::text::rich_text::RichText>()?;
+    m.add_class::<self::text::rich_text::RichTextElement>()?;
+    m.add_class::<self::extractors::Document>()?;
     Ok(())
 }

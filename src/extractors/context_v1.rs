@@ -1,19 +1,21 @@
 use crate::{
     context::ContentHierarchy,
     error::TableExtractorError,
-    misc::{convert_attrs, Enum2},
-    text::{get_text_with_trace, TextHTMLElement, TextTrace, BLOCK_ELEMENTS},
+    misc::Enum2,
+    text::{get_rich_text, rich_text::PSEUDO_TAG, RichText, RichTextElement, BLOCK_ELEMENTS},
 };
 
+use crate::misc::SimpleTree;
 use anyhow::Result;
 use ego_tree::NodeRef;
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
+use pyo3::prelude::*;
 use scraper::Node;
 
-use crate::misc::SimpleTree;
-
+#[derive(Clone)]
+#[pyclass]
 pub struct ContextExtractor {
-    // do not include those tags in the text trace
+    // do not include those tags in the rich text
     ignored_tags: HashSet<String>,
     // do not include those tags in the context
     discard_tags: HashSet<String>,
@@ -22,6 +24,59 @@ pub struct ContextExtractor {
 
     // whether to only keep inline tags in the text trace
     only_keep_inline_tags: bool,
+}
+
+#[pymethods]
+impl ContextExtractor {
+    #[new]
+    #[args(
+        "*",
+        ignored_tags = "None",
+        discard_tags = "None",
+        same_content_level_elements = "None",
+        header_elements = "None",
+        only_keep_inline_tags = "true"
+    )]
+    fn new(
+        ignored_tags: Option<Vec<&str>>,
+        discard_tags: Option<Vec<&str>>,
+        same_content_level_elements: Option<Vec<&str>>,
+        header_elements: Option<Vec<&str>>,
+        only_keep_inline_tags: bool,
+    ) -> Self {
+        let discard_tags_ = HashSet::from_iter(
+            discard_tags
+                .unwrap_or(["script", "style", "noscript", "table"].to_vec())
+                .into_iter()
+                .map(str::to_owned),
+        );
+        let ignored_tags_ = HashSet::from_iter(
+            ignored_tags
+                .unwrap_or(["div"].to_vec())
+                .into_iter()
+                .map(str::to_owned),
+        );
+        let same_content_level_elements_ = HashSet::from_iter(
+            same_content_level_elements
+                .unwrap_or(["table", "h1", "h2", "h3", "h4", "h5", "h6"].to_vec())
+                .into_iter()
+                .map(str::to_owned),
+        );
+        let header_elements_ = HashSet::from_iter(
+            header_elements
+                .unwrap_or(["h1", "h2", "h3", "h4", "h5", "h6"].to_vec())
+                .into_iter()
+                .map(str::to_owned),
+        );
+
+        ContextExtractor {
+            ignored_tags: ignored_tags_,
+            discard_tags: discard_tags_,
+            same_content_level_elements: same_content_level_elements_,
+            header_elements: header_elements_,
+            only_keep_inline_tags,
+        }
+    }
 }
 
 impl ContextExtractor {
@@ -67,18 +122,18 @@ impl ContextExtractor {
     ) -> Result<Vec<ContentHierarchy>> {
         let (tree_before, tree_after) = self.locate_content_before_and_after(table_el)?;
 
-        let mut context_before: Vec<InclusiveTextTrace> = vec![];
-        let mut context_after: Vec<InclusiveTextTrace> = vec![];
-        self.flatten_tree(&tree_before, tree_before.root(), &mut context_before);
-        self.flatten_tree(&tree_after, tree_after.root(), &mut context_after);
+        let mut context_before: Vec<RichText> = vec![];
+        let mut context_after: Vec<RichText> = vec![];
+        self.flatten_tree(&tree_before, tree_before.get_root_id(), &mut context_before);
+        self.flatten_tree(&tree_after, tree_after.get_root_id(), &mut context_after);
 
-        let mut context = vec![ContentHierarchy::new(0, TextTrace::empty())];
+        let mut context = vec![ContentHierarchy::new(0, RichText::empty())];
         for c in context_before {
             if self.header_elements.contains(c.get_tag()) {
                 let header = c.get_tag()[1..].parse::<usize>().unwrap();
-                context.push(ContentHierarchy::new(header, c.0));
+                context.push(ContentHierarchy::new(header, c));
             } else {
-                context.last_mut().unwrap().content_before.push(c.0);
+                context.last_mut().unwrap().content_before.push(c);
                 continue;
             }
         }
@@ -99,79 +154,19 @@ impl ContextExtractor {
             .last_mut()
             .unwrap()
             .content_after
-            .extend(context_after.into_iter().map(|c| c.0));
+            .extend(context_after.into_iter().map(|c| c));
 
         Ok(context)
     }
-
-    // fn flatten_tree(&self, tree: &SubTree, nodeid: usize, output: &mut Vec<InclusiveTextTrace>) {
-    //     let node = tree.get_node(nodeid);
-    //     let node_children = tree.get_children(&nodeid);
-    //     if node_children.len() == 0 {
-    //         self.flatten_node(node, output);
-    //         return;
-    //     }
-
-    //     let node_el = node.value().as_element().unwrap();
-    //     if !BLOCK_ELEMENTS.contains(node_el.name()) {
-    //         // inline element, but why it's here with a subtree?
-    //         // this should never happen
-    //         // silent the error for now
-    //         for childid in node_children {
-    //             self.flatten_tree(tree, *childid, output);
-    //         }
-    //         return;
-    //     }
-
-    //     // block element, have to check its children
-    //     let mut line: Vec<Enum2<usize, InclusiveTextTrace>> = vec![];
-    //     for childid in node_children {
-    //         let child_ref = tree.get_node(*childid);
-    //         if let Some(child_el) = child_ref.value().as_element() {
-    //             if BLOCK_ELEMENTS.contains(child_el.name()) {
-    //                 line.push(Enum2::Type1(*childid));
-    //             } else {
-    //                 line.push(Enum2::Type2(InclusiveTextTrace::from_element(
-    //                     &child_ref,
-    //                     &self.ignored_tags,
-    //                     self.only_keep_inline_tags,
-    //                     &self.discard_tags,
-    //                 )));
-    //             }
-    //         } else {
-    //             if child_ref.value().is_text() {
-    //                 line.push(Enum2::Type2(InclusiveTextTrace::from_text(&child_ref)));
-    //             }
-    //         }
-    //     }
-
-    //     let mut flag = false;
-    //     for piece in line {
-    //         match piece {
-    //             Enum2::Type1(child_id) => {
-    //                 self.flatten_tree(tree, child_id, output);
-    //                 flag = false;
-    //             }
-    //             Enum2::Type2(text) => {
-    //                 if flag {
-    //                     output.last_mut().unwrap().0.merge(text.0);
-    //                 } else {
-    //                     output.push(text)
-    //                 }
-    //                 flag = true;
-    //             }
-    //         }
-    //     }
-    // }
 
     fn flatten_tree(
         &self,
         tree: &SimpleTree<NodeRef<Node>>,
         nodeid: usize,
-        output: &mut Vec<InclusiveTextTrace>,
+        output: &mut Vec<RichText>,
     ) {
         let node = tree.get_node(nodeid);
-        let node_children = tree.get_children(nodeid);
+        let node_children = tree.get_child_ids(nodeid);
         if node_children.len() == 0 {
             self.flatten_node(node, output);
             return;
@@ -189,14 +184,14 @@ impl ContextExtractor {
         }
 
         // block element, have to check its children
-        let mut line: Vec<Enum2<usize, InclusiveTextTrace>> = vec![];
+        let mut line: Vec<Enum2<usize, RichText>> = vec![];
         for childid in node_children {
             let child_ref = tree.get_node(*childid);
             if let Some(child_el) = child_ref.value().as_element() {
                 if BLOCK_ELEMENTS.contains(child_el.name()) {
                     line.push(Enum2::Type1(*childid));
                 } else {
-                    line.push(Enum2::Type2(InclusiveTextTrace::from_element(
+                    line.push(Enum2::Type2(get_rich_text(
                         &child_ref,
                         &self.ignored_tags,
                         self.only_keep_inline_tags,
@@ -204,8 +199,8 @@ impl ContextExtractor {
                     )));
                 }
             } else {
-                if child_ref.value().is_text() {
-                    line.push(Enum2::Type2(InclusiveTextTrace::from_text(&child_ref)));
+                if let Some(text) = child_ref.value().as_text() {
+                    line.push(Enum2::Type2(RichText::from_str(text)));
                 }
             }
         }
@@ -219,7 +214,7 @@ impl ContextExtractor {
                 }
                 Enum2::Type2(text) => {
                     if flag {
-                        output.last_mut().unwrap().0.merge(text.0);
+                        merge_rich_text(output.last_mut().unwrap(), text);
                     } else {
                         output.push(text)
                     }
@@ -229,9 +224,9 @@ impl ContextExtractor {
         }
     }
 
-    fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<InclusiveTextTrace>) {
+    fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
         match node_ref.value() {
-            Node::Text(_) => output.push(InclusiveTextTrace::from_text(node_ref)),
+            Node::Text(text) => output.push(RichText::from_str(text)),
             Node::Element(el) => {
                 if self.discard_tags.contains(el.name()) {
                     // skip discard tags
@@ -239,7 +234,7 @@ impl ContextExtractor {
                 }
 
                 if self.header_elements.contains(el.name()) || !BLOCK_ELEMENTS.contains(el.name()) {
-                    output.push(InclusiveTextTrace::from_element(
+                    output.push(get_rich_text(
                         node_ref,
                         &self.ignored_tags,
                         self.only_keep_inline_tags,
@@ -249,13 +244,13 @@ impl ContextExtractor {
                 }
 
                 // block element, have to check its children
-                let mut line: Vec<Enum2<NodeRef<Node>, InclusiveTextTrace>> = vec![];
+                let mut line: Vec<Enum2<NodeRef<Node>, RichText>> = vec![];
                 for child_ref in node_ref.children() {
                     if let Some(child_el) = child_ref.value().as_element() {
                         if BLOCK_ELEMENTS.contains(child_el.name()) {
                             line.push(Enum2::Type1(child_ref));
                         } else {
-                            line.push(Enum2::Type2(InclusiveTextTrace::from_element(
+                            line.push(Enum2::Type2(get_rich_text(
                                 &child_ref,
                                 &self.ignored_tags,
                                 self.only_keep_inline_tags,
@@ -263,8 +258,8 @@ impl ContextExtractor {
                             )));
                         }
                     } else {
-                        if child_ref.value().is_text() {
-                            line.push(Enum2::Type2(InclusiveTextTrace::from_text(&child_ref)));
+                        if let Some(text) = child_ref.value().as_text() {
+                            line.push(Enum2::Type2(RichText::from_str(text)));
                         }
                     }
                 }
@@ -278,7 +273,7 @@ impl ContextExtractor {
                         }
                         Enum2::Type2(text) => {
                             if flag {
-                                output.last_mut().unwrap().0.merge(text.0);
+                                merge_rich_text(output.last_mut().unwrap(), text);
                             } else {
                                 output.push(text)
                             }
@@ -307,8 +302,8 @@ impl ContextExtractor {
         element: NodeRef<'s, Node>,
     ) -> Result<(SimpleTree<NodeRef<'s, Node>>, SimpleTree<NodeRef<'s, Node>>)> {
         let mut el = element;
-        let mut tree_before = SimpleTree::new();
-        let mut tree_after = SimpleTree::new();
+        let mut tree_before = SimpleTree::empty();
+        let mut tree_after = SimpleTree::empty();
 
         while let Some(parent_ref) = el.parent() {
             let parent = parent_ref.value().as_element().ok_or(
@@ -325,7 +320,7 @@ impl ContextExtractor {
                 if e.id() == el.id() {
                     // this is the index
                     if !tree_before.is_empty() {
-                        tree_before.add_child(node, tree_before.root());
+                        tree_before.add_child(node, tree_before.get_root_id());
                     }
                     break;
                 }
@@ -359,68 +354,32 @@ impl ContextExtractor {
     }
 }
 
-pub struct InclusiveTextTrace(TextTrace);
-
-impl InclusiveTextTrace {
-    #[inline(always)]
-    fn from_text(node: &NodeRef<Node>) -> InclusiveTextTrace {
-        let text = node.value().as_text().unwrap();
-        InclusiveTextTrace(TextTrace::from_str(text))
+fn merge_rich_text(this: &mut RichText, mut other: RichText) {
+    // prepare this to store multiple rich texts
+    // by ensuring the root element is always a pseudo element
+    {
+        let root = this.element.get_root_mut();
+        if root.tag != PSEUDO_TAG {
+            // we have to add a pseudo tag
+            let new_root = this.element.add_node(RichTextElement {
+                tag: PSEUDO_TAG.to_owned(),
+                start: 0,
+                end: this.text.len() + other.text.len(),
+                attrs: HashMap::new(),
+            });
+            this.element.add_child(new_root, this.element.get_root_id());
+        } else {
+            root.end = this.text.len() + other.text.len();
+        }
     }
 
-    #[inline(always)]
-    fn from_element(
-        node: &NodeRef<Node>,
-        ignored_tags: &HashSet<String>,
-        only_inline_tags: bool,
-        discard_tags: &HashSet<String>,
-    ) -> InclusiveTextTrace {
-        let el = node.value().as_element().unwrap();
-
-        let mut text = get_text_with_trace(node, ignored_tags, only_inline_tags, discard_tags);
-        let tmp = TextHTMLElement {
-            tag: el.name().to_string(),
-            attrs: convert_attrs(&el.attrs),
-            start: 0,
-            end: text.text.len(),
-            children: text.trace,
-        };
-        text.trace = vec![tmp];
-
-        InclusiveTextTrace(text)
+    // now shift the other text by this offset
+    let offset = this.text.len();
+    for n in other.element.iter_mut() {
+        n.start += offset;
+        n.end += offset;
     }
 
-    // fn from_node(
-    //     node: &NodeRef<Node>,
-    //     ignored_tags: &HashSet<String>,
-    //     only_inline_tags: bool,
-    //     discard_tags: &HashSet<String>,
-    // ) -> Option<InclusiveTextTrace> {
-    //     match node.value() {
-    //         Node::Text(text) => Some(InclusiveTextTrace(TextTrace::from_str(text))),
-    //         Node::Element(el) => {
-    //             if discard_tags.contains(el.name()) {
-    //                 return None;
-    //             }
-
-    //             let mut text =
-    //                 get_text_with_trace(node, ignored_tags, only_inline_tags, discard_tags);
-    //             let tmp = TextHTMLElement {
-    //                 tag: el.name().to_string(),
-    //                 attrs: convert_attrs(&el.attrs),
-    //                 start: 0,
-    //                 end: text.text.len(),
-    //                 children: text.trace,
-    //             };
-    //             text.trace = vec![tmp];
-
-    //             Some(InclusiveTextTrace(text))
-    //         }
-    //         _ => None,
-    //     }
-    // }
-
-    fn get_tag(&self) -> &str {
-        self.0.trace[0].tag.as_str()
-    }
+    this.element
+        .merge_subtree_no_root(this.element.get_root_id(), other.element);
 }

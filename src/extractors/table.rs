@@ -3,17 +3,19 @@ use crate::misc::convert_attrs;
 use crate::table::{Row, Table};
 use crate::{
     table::Cell,
-    text::{get_text, get_text_with_trace},
+    text::{get_rich_text, get_text},
 };
 use anyhow::{bail, Result};
 use ego_tree::NodeRef;
 use hashbrown::HashSet;
+use pyo3::prelude::*;
 use scraper::{ElementRef, Node, Selector};
 use url::Url;
 
 use super::context_v1::ContextExtractor;
 use super::Document;
 
+#[pyclass]
 pub struct TableExtractor {
     ignored_tags: HashSet<String>,
     discard_tags: HashSet<String>,
@@ -21,10 +23,63 @@ pub struct TableExtractor {
     context_extractor: ContextExtractor,
 }
 
+#[pymethods]
+impl TableExtractor {
+    #[new]
+    #[args(
+        "*",
+        ignored_tags = "None",
+        discard_tags = "None",
+        only_keep_inline_tags = "true"
+    )]
+    pub fn new(
+        ignored_tags: Option<Vec<&str>>,
+        discard_tags: Option<Vec<&str>>,
+        only_keep_inline_tags: bool,
+        context_extractor: ContextExtractor,
+    ) -> Self {
+        let discard_tags_ = HashSet::from_iter(
+            discard_tags
+                .unwrap_or(["script", "style", "noscript", "table"].to_vec())
+                .into_iter()
+                .map(str::to_owned),
+        );
+        let ignored_tags_ = HashSet::from_iter(
+            ignored_tags
+                .unwrap_or(["div"].to_vec())
+                .into_iter()
+                .map(str::to_owned),
+        );
+        TableExtractor {
+            ignored_tags: ignored_tags_,
+            discard_tags: discard_tags_,
+            only_keep_inline_tags,
+            context_extractor,
+        }
+    }
+
+    #[args(auto_span = "true", auto_pad = "true", extract_context = "true")]
+    fn extract(
+        &self,
+        url: String,
+        doc: String,
+        auto_span: bool,
+        auto_pad: bool,
+        extract_context: bool,
+    ) -> PyResult<Vec<Table>> {
+        Ok(self.extract_tables(
+            &Document::new(url, doc),
+            auto_span,
+            auto_pad,
+            extract_context,
+        )?)
+    }
+}
+
 impl TableExtractor {
     pub fn default(context_extractor: ContextExtractor) -> Self {
         let discard_tags = HashSet::from_iter(
-            ["script", "style", "noscript"]
+            ["script", "style", "noscript", "table"]
                 .into_iter()
                 .map(str::to_owned),
         );
@@ -41,7 +96,7 @@ impl TableExtractor {
     /// Extract tables from HTML.
     pub fn extract_tables<'t>(
         &self,
-        doc: &'t mut Document,
+        doc: &'t Document,
         auto_span: bool,
         auto_pad: bool,
         extract_context: bool,
@@ -92,7 +147,7 @@ impl TableExtractor {
             }
         }
 
-        let mut url = Url::parse(doc.url)?;
+        let mut url = Url::parse(&doc.url)?;
         let mut query = match url.query() {
             None => "table_no=".as_bytes().to_vec(),
             Some(q) => {
@@ -210,7 +265,7 @@ impl TableExtractor {
             html: ElementRef::wrap(cell).unwrap().html(),
             rowspan,
             colspan,
-            value: get_text_with_trace(
+            value: get_rich_text(
                 &cell,
                 &self.ignored_tags,
                 self.only_keep_inline_tags,

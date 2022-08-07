@@ -2,7 +2,10 @@ use anyhow::Result;
 use hashbrown::{HashMap, HashSet};
 use scraper::{Html, Selector};
 use std::{fs, path::Path};
-use table_extractor::text::{get_text, get_text_with_trace, TextHTMLElement, TextTrace};
+use table_extractor::{
+    misc::SimpleTree,
+    text::{get_rich_text, get_text, RichText, RichTextElement},
+};
 
 fn get_doc() -> Result<Html> {
     let html_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/resources/parser.html");
@@ -28,28 +31,34 @@ fn test_get_text_with_trace() -> Result<()> {
     let only_inline_tags = false;
 
     let doc = Html::parse_fragment("<p>What are you<b>doing </b>?</p>");
+    let mut element = SimpleTree::new(RichTextElement {
+        tag: "p".to_owned(),
+        start: 0,
+        end: 19,
+        attrs: HashMap::new(),
+    });
+    element.add_node(RichTextElement {
+        tag: "b".to_owned(),
+        start: 12,
+        end: 17,
+        attrs: HashMap::new(),
+    });
+    element.add_child(0, 1);
     assert_eq!(
-        get_text_with_trace(
-            &doc.tree.root().first_child().unwrap(),
+        get_rich_text(
+            &doc.tree
+                .root()
+                .first_child()
+                .unwrap()
+                .first_child()
+                .unwrap(),
             &ignored_tags,
             only_inline_tags,
             &discard_tags
         ),
-        TextTrace {
+        RichText {
             text: "What are youdoing ?".to_owned(),
-            trace: vec![TextHTMLElement {
-                tag: "p".to_owned(),
-                start: 0,
-                end: 19,
-                attrs: HashMap::new(),
-                children: vec![TextHTMLElement {
-                    tag: "b".to_owned(),
-                    start: 12,
-                    end: 17,
-                    attrs: HashMap::new(),
-                    children: vec![]
-                }]
-            }]
+            element
         }
     );
 
@@ -73,8 +82,8 @@ fn test_get_text_with_trace() -> Result<()> {
         let node = tree.root().first_child().unwrap();
         // println!("{:#?}", get_text_with_trace(&node, &ignored_tags, true));
         assert_eq!(
-            get_text_with_trace(&node, &ignored_tags, true, &discard_tags).to_bare_html(),
-            parsed_texts[i]
+            get_rich_text(&node, &ignored_tags, true, &discard_tags).to_bare_html(),
+            format!("{}{}{}", "<html>", parsed_texts[i], "</html>")
         );
     }
 

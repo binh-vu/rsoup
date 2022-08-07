@@ -3,7 +3,7 @@ pub mod tree;
 use hashbrown::HashMap;
 use scraper::node::Attributes;
 
-pub use self::tree::iterator::{ITree, PreorderTraversal};
+pub use self::tree::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
 pub use self::tree::simple_tree::SimpleTree;
 
 pub fn convert_attrs(attrs: &Attributes) -> HashMap<String, String> {

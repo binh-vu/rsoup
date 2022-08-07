@@ -3,18 +3,20 @@ use scraper::Html;
 pub mod context_v1;
 pub mod table;
 
-pub struct Document<'s> {
-    url: &'s str,
-    doc: &'s str,
+use pyo3::prelude::*;
+
+#[pyclass(unsendable)]
+pub struct Document {
+    url: String,
+    doc: String,
     html: Html,
 }
 
-impl<'s> Document<'s> {
-    pub fn new(url: &'s str, doc: &'s str) -> Self {
-        Document {
-            url,
-            doc,
-            html: Html::parse_document(doc),
-        }
+#[pymethods]
+impl Document {
+    #[new]
+    pub fn new(url: String, doc: String) -> Self {
+        let html = Html::parse_document(&doc);
+        Document { url, doc, html }
     }
 }

@@ -1,7 +1,9 @@
-use crate::{context::ContentHierarchy, error::TableExtractorError, text::TextTrace};
+use crate::{context::ContentHierarchy, error::TableExtractorError, text::RichText};
 use hashbrown::HashMap;
+use pyo3::prelude::*;
 
 #[derive(Debug, Clone)]
+#[pyclass]
 pub struct Table {
     pub id: String,
     pub url: String,
@@ -12,18 +14,20 @@ pub struct Table {
 }
 
 #[derive(Debug, Clone)]
+#[pyclass]
 pub struct Row {
     pub cells: Vec<Cell>,
     pub attrs: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
+#[pyclass]
 pub struct Cell {
     pub is_header: bool,
     pub rowspan: u16,
     pub colspan: u16,
     pub attrs: HashMap<String, String>,
-    pub value: TextTrace,
+    pub value: RichText,
     // raw html of the cell
     pub html: String,
 }
@@ -151,7 +155,7 @@ impl Table {
             rowspan: 1,
             colspan: 1,
             attrs: HashMap::new(),
-            value: TextTrace::empty(),
+            value: RichText::empty(),
             html: "".to_owned(),
         };
 
