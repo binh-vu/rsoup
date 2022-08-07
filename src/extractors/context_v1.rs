@@ -122,6 +122,8 @@ impl ContextExtractor {
     ) -> Result<Vec<ContentHierarchy>> {
         let (tree_before, tree_after) = self.locate_content_before_and_after(table_el)?;
 
+        // println!("tree {:?}", tree_before);
+
         let mut context_before: Vec<RichText> = vec![];
         let mut context_after: Vec<RichText> = vec![];
         self.flatten_tree(&tree_before, tree_before.get_root_id(), &mut context_before);
@@ -214,7 +216,7 @@ impl ContextExtractor {
                 }
                 Enum2::Type2(text) => {
                     if flag {
-                        merge_rich_text(output.last_mut().unwrap(), text);
+                        merge_inline_rich_texts(output.last_mut().unwrap(), text);
                     } else {
                         output.push(text)
                     }
@@ -273,7 +275,7 @@ impl ContextExtractor {
                         }
                         Enum2::Type2(text) => {
                             if flag {
-                                merge_rich_text(output.last_mut().unwrap(), text);
+                                merge_inline_rich_texts(output.last_mut().unwrap(), text);
                             } else {
                                 output.push(text)
                             }
@@ -305,15 +307,22 @@ impl ContextExtractor {
         let mut tree_before = SimpleTree::empty();
         let mut tree_after = SimpleTree::empty();
 
+        println!(">> begin - {:?}", element.value().as_element());
+        println!(
+            ">> parent - {:?}",
+            element.parent().unwrap().value().as_element()
+        );
         while let Some(parent_ref) = el.parent() {
             let parent = parent_ref.value().as_element().ok_or(
                 TableExtractorError::InvalidHTMLStructureError(
                     "Parent of an element must be an element",
                 ),
             )?;
-            if parent.name() != "html" {
+            if parent.name() == "html" {
                 break;
             }
+
+            println!(">> {:?}", parent.name());
 
             let node = tree_before.add_node(parent_ref);
             for e in parent_ref.children() {
@@ -333,7 +342,7 @@ impl ContextExtractor {
         let root = element
             .parent()
             .ok_or(TableExtractorError::InvalidHTMLStructureError(
-                "The element we want to locate cannot be a root node",
+                "The element we want to locate cannot be a root node in HTML doc",
             ))?;
         let root_id = tree_after.add_node(root);
 
@@ -354,10 +363,21 @@ impl ContextExtractor {
     }
 }
 
-fn merge_rich_text(this: &mut RichText, mut other: RichText) {
+fn merge_inline_rich_texts2(rich_texts: Vec<RichText>) -> RichText {}
+
+// Merge texts in the same line following the same whitespace handling rule in the browser.
+fn merge_inline_rich_texts(this: &mut RichText, mut other: RichText) {
+    // handling the leading whitespaces
+    if this.text.trim() == "" {
+        this.text = other.text;
+        this.element = other.element;
+        return;
+    }
+
     // prepare this to store multiple rich texts
     // by ensuring the root element is always a pseudo element
     {
+        println!(">> merge_rich_text - {:?}", this);
         let root = this.element.get_root_mut();
         if root.tag != PSEUDO_TAG {
             // we have to add a pseudo tag

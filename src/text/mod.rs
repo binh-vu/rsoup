@@ -1,12 +1,12 @@
+mod get_rich_text;
 pub mod get_text_v1;
 pub mod get_text_v2;
-mod get_text_with_trace;
 pub mod line;
 pub mod rich_text;
 use phf::{phf_set, Set};
 
+pub use self::get_rich_text::get_rich_text;
 pub use self::get_text_v2::get_text;
-pub use self::get_text_with_trace::get_rich_text;
 pub use self::rich_text::{RichText, RichTextElement};
 
 /// list of inline elements that will be rendered in same line except <br> tags

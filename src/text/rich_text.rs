@@ -34,14 +34,24 @@ impl RichText {
     pub fn empty() -> RichText {
         RichText {
             text: String::new(),
-            element: SimpleTree::empty(),
+            element: SimpleTree::new(RichTextElement {
+                tag: PSEUDO_TAG.to_owned(),
+                start: 0,
+                end: 0,
+                attrs: HashMap::new(),
+            }),
         }
     }
 
     pub fn from_str(text: &str) -> RichText {
         RichText {
             text: text.to_owned(),
-            element: SimpleTree::empty(),
+            element: SimpleTree::new(RichTextElement {
+                tag: PSEUDO_TAG.to_owned(),
+                start: 0,
+                end: text.len(),
+                attrs: HashMap::new(),
+            }),
         }
     }
 
