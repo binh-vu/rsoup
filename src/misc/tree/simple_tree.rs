@@ -1,3 +1,6 @@
+use hashbrown::HashMap;
+use serde_json::json;
+
 use super::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
 
 /// A simple vector-based tree. Nodes are ordered based on their insertion order.
@@ -97,12 +100,6 @@ impl<N> SimpleTree<N> {
         self.nodes.len()
     }
 
-    pub fn print_structure(&self) {
-        for (i, children) in self.node2children.iter().enumerate() {
-            println!("{} -> {:?}", i, children);
-        }
-    }
-
     pub fn merge_subtree(&mut self, parent_id: usize, mut subtree: SimpleTree<N>) {
         let id_offset = self.nodes.len();
         self.nodes.extend(subtree.nodes.into_iter());
@@ -147,6 +144,48 @@ impl<N> SimpleTree<N> {
         }
         it.next();
         self.node2children.extend(it);
+    }
+
+    pub fn validate(&self) -> bool {
+        let mut is_valid = true;
+        for child_ids in &self.node2children {
+            is_valid = is_valid
+                && child_ids
+                    .iter()
+                    .all(|&child_id| child_id < self.nodes.len());
+        }
+        is_valid = is_valid && self.iter_id_preorder().count() == self.nodes.len();
+        is_valid
+    }
+
+    pub fn to_string(&self, key: &dyn Fn(usize) -> String) -> String {
+        let mut buffer = Vec::<String>::with_capacity(self.len());
+
+        struct RecurFn<'s> {
+            f: &'s dyn Fn(&RecurFn, usize, usize, &mut Vec<String>),
+        }
+        let func = RecurFn {
+            f: &|func, node_id: usize, depth: usize, buffer: &mut Vec<String>| {
+                let indent = " ".repeat(depth * 4);
+
+                buffer.push(indent.clone());
+                buffer.push(key(node_id));
+
+                if self.node2children[node_id].len() > 0 {
+                    buffer.push(" -> {\n".to_owned());
+                    for child_id in self.node2children[node_id].iter() {
+                        (func.f)(func, *child_id, depth + 1, buffer);
+                    }
+                    buffer.push(indent);
+                    buffer.push("}\n".to_owned());
+                } else {
+                    buffer.push("\n".to_owned());
+                }
+            },
+        };
+
+        (func.f)(&func, self.root, 0, &mut buffer);
+        buffer.join("")
     }
 }
 

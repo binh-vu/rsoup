@@ -33,15 +33,17 @@ use super::{
 /// * `ignored_tags` - set of tags to not include in the trace
 /// * `only_inline_tags` - whether to only track inline tags
 /// * `discard_tags` - set of tags will be discarded and not included in the text
+/// * `keep_tags` - set of tags will be kept and included in the text
 pub fn get_rich_text<'s>(
     el: &'s NodeRef<Node>,
     ignored_tags: &HashSet<String>,
     only_inline_tags: bool,
     discard_tags: &HashSet<String>,
+    keep_tags: &HashSet<String>,
 ) -> RichText {
     // create a stack-based stream of elements to simulate
     // the rendering process from left to right
-    let mut stream = el.children().rev().collect::<Vec<_>>();
+    let stream = el.children().rev().collect::<Vec<_>>();
     // create a marker to breakline
     let tree = Tree::new(Node::Document);
     let bl_marker = tree.root();
@@ -65,7 +67,7 @@ pub fn get_rich_text<'s>(
             attrs: HashMap::new(),
         }
     };
-    let mut element = SimpleTree::new(tmp);
+    let element = SimpleTree::new(tmp);
 
     get_rich_text_from_stream(
         stream,
@@ -75,6 +77,7 @@ pub fn get_rich_text<'s>(
         ignored_tags,
         only_inline_tags,
         discard_tags,
+        keep_tags,
     )
 }
 
@@ -83,7 +86,11 @@ pub fn get_rich_text_from_seq(
     ignored_tags: &HashSet<String>,
     only_inline_tags: bool,
     discard_tags: &HashSet<String>,
+    keep_tags: &HashSet<String>,
 ) -> RichText {
+    // reverse the sequence first
+    seq.reverse();
+
     // create a marker to breakline
     let tree = Tree::new(Node::Document);
     let bl_marker = tree.root();
@@ -92,7 +99,7 @@ pub fn get_rich_text_from_seq(
     let tree = Tree::new(Node::Fragment);
     let el_marker = tree.root();
 
-    let mut element = SimpleTree::new(RichTextElement {
+    let element = SimpleTree::new(RichTextElement {
         tag: PSEUDO_TAG.to_owned(),
         start: 0,
         end: 0,
@@ -107,6 +114,7 @@ pub fn get_rich_text_from_seq(
         ignored_tags,
         only_inline_tags,
         discard_tags,
+        keep_tags,
     )
 }
 
@@ -118,6 +126,7 @@ fn get_rich_text_from_stream<'s>(
     ignored_tags: &HashSet<String>,
     only_inline_tags: bool,
     discard_tags: &HashSet<String>,
+    keep_tags: &HashSet<String>,
 ) -> RichText {
     let mut paragraph = Paragraph::with_capacity(stream.len());
     let mut line = Line::with_capacity(stream.len());
@@ -126,13 +135,15 @@ fn get_rich_text_from_stream<'s>(
     while let Some(node) = stream.pop() {
         match node.value() {
             Node::Element(node_el) => {
-                if discard_tags.contains(node_el.name()) {
+                let node_el_tag = node_el.name();
+                if discard_tags.contains(node_el_tag) {
                     continue;
                 }
 
-                if BLOCK_ELEMENTS.contains(node_el.name()) {
+                if BLOCK_ELEMENTS.contains(node_el_tag) {
                     // create a newline
                     // (the empty line will be skipped automatically)
+                    // what if the line is empty, but it contains other tags?
                     paragraph.append(&line);
                     line.clear();
 
@@ -140,18 +151,26 @@ fn get_rich_text_from_stream<'s>(
                     stream.push(bl_marker);
                 }
 
-                if !ignored_tags.contains(node_el.name())
-                    && (!only_inline_tags || (INLINE_ELEMENTS.contains(node_el.name())))
+                if keep_tags.contains(node_el_tag)
+                    || (!ignored_tags.contains(node_el_tag)
+                        && (!only_inline_tags || (INLINE_ELEMENTS.contains(node_el_tag))))
                 {
                     // enter this element and track it
                     // due to leading space of element will be moved outside, we have to keep
                     // track of the token index (store that in start), and use end to keep track of start
                     let text_el = RichTextElement {
-                        tag: node_el.name().to_string(),
+                        tag: node_el_tag.to_string(),
                         start: paragraph.tokens.len() + line.tokens.len(),
                         end: paragraph.len() + line.len(),
                         attrs: convert_attrs(&node_el.attrs),
                     };
+                    println!(
+                        "text: {} - {} - {}: `{}`",
+                        node_el_tag,
+                        text_el.end,
+                        paragraph.to_string().len(),
+                        paragraph.to_string()
+                    );
                     let node_id = element.add_node(text_el);
                     element.add_child(stack_ptrs.last().unwrap().1, node_id);
                     stack_ptrs.push((stream.len(), node_id));
@@ -191,12 +210,20 @@ fn get_rich_text_from_stream<'s>(
 
                     if paragraph.tokens.len() > start_token {
                         // this means the line that containing the first character of text_el was merged into the paragraph
-                        if paragraph.tokens[start_token] == " " {
-                            // skip the leading space (always one space as consecutive spaces are merged)
+                        if paragraph.tokens[start_token] == " "
+                            || paragraph.tokens[start_token] == "\n"
+                        {
+                            // skip the leading space (always one space or one newline as consecutive spaces are merged)
                             start_pos += 1;
                         }
                     } else {
-                        // the line is not finished yet.
+                        // the line is not finished yet and is not yet added to the paragraph
+                        // if the line is not empty, it's guaranteed to be added, and we need to
+                        // move the start_pos by 1 (for the newline)
+                        // if the line is empty, it won't be added to the paragraph, but we may still
+                        // need to move start_pos by 1 (for the newline) if there will be another line
+                        // added later.
+
                         let line_token = start_token - paragraph.tokens.len();
                         if line_token < line.tokens.len() && line.tokens[line_token] == " " {
                             start_pos += 1
@@ -204,6 +231,12 @@ fn get_rich_text_from_stream<'s>(
                     };
                     text_el.start = start_pos;
                     text_el.end = paragraph.len() + line.len();
+                    println!(
+                        ">> text_el {:?}, start_token: {}, paragraph.tokens: {}",
+                        text_el,
+                        start_token,
+                        paragraph.tokens.len()
+                    );
                 }
             }
             _ => {

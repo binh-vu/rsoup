@@ -62,12 +62,17 @@ impl RichText {
         self.element.get_root().tag.as_str()
     }
 
-    pub fn is_valid(&self) -> bool {
+    pub fn validate(&self) -> bool {
+        let root_id = self.element.get_root_id();
         let root = self.element.get_root();
         let mut is_valid = root.start == 0 && root.end == self.text.len();
 
         for node_id in self.element.iter_id_preorder() {
             let node = self.element.get_node(*node_id);
+            if *node_id != root_id {
+                is_valid = is_valid && node.tag != PSEUDO_TAG;
+            }
+
             is_valid = is_valid && node.start <= node.end;
             let child_ids = self.element.get_child_ids(*node_id);
             for (i, child_id) in child_ids.iter().enumerate() {
@@ -97,10 +102,10 @@ impl RichText {
 
         for token_id in it {
             let token = self.element.get_node(*token_id);
-            // println!(
-            //     "------before\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
-            //     pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
-            // );
+            println!(
+                "------before\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
+                pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
+            );
 
             while let Some(closing_tag_id) = closing_tag_ids.last() {
                 let closing_tag = self.element.get_node(*closing_tag_id);
@@ -151,10 +156,10 @@ impl RichText {
             pointer = token.start;
             closing_tag_ids.push(*token_id);
 
-            // println!(
-            //     "------after\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
-            //     pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
-            // );
+            println!(
+                "------after\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
+                pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
+            );
         }
 
         for closing_tag_id in closing_tag_ids.iter().rev() {

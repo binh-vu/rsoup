@@ -19,6 +19,7 @@ pyo3 = { version = "0.16.3", features = ["anyhow"] }
 regex = "1.6.0"
 scraper = "0.13.0"
 selectors = "0.23.0"
+serde_json = { version = "1.0.83", features = ["preserve_order"] }
 soup = "0.5.1"
 thiserror = "1.0.32"
 url = "2.2.2"

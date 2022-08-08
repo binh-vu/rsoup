@@ -19,6 +19,7 @@ use super::Document;
 pub struct TableExtractor {
     ignored_tags: HashSet<String>,
     discard_tags: HashSet<String>,
+    keep_tags: HashSet<String>,
     only_keep_inline_tags: bool,
     context_extractor: ContextExtractor,
 }
@@ -50,9 +51,11 @@ impl TableExtractor {
                 .into_iter()
                 .map(str::to_owned),
         );
+
         TableExtractor {
             ignored_tags: ignored_tags_,
             discard_tags: discard_tags_,
+            keep_tags: HashSet::new(),
             only_keep_inline_tags,
             context_extractor,
         }
@@ -90,6 +93,7 @@ impl TableExtractor {
             discard_tags,
             only_keep_inline_tags: false,
             context_extractor,
+            keep_tags: HashSet::new(),
         }
     }
 
@@ -270,6 +274,7 @@ impl TableExtractor {
                 &self.ignored_tags,
                 self.only_keep_inline_tags,
                 &self.discard_tags,
+                &self.keep_tags,
             ),
             attrs: convert_attrs(&el.attrs),
         })

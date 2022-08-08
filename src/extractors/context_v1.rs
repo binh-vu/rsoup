@@ -2,14 +2,14 @@ use crate::{
     context::ContentHierarchy,
     error::TableExtractorError,
     misc::Enum2,
-    text::{get_rich_text, rich_text::PSEUDO_TAG, RichText, RichTextElement, BLOCK_ELEMENTS},
+    text::{get_rich_text, rich_text::PSEUDO_TAG, RichText, BLOCK_ELEMENTS},
 };
 
 use crate::misc::SimpleTree;
 use crate::text::get_rich_text_from_seq;
 use anyhow::Result;
 use ego_tree::NodeRef;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashSet;
 use pyo3::prelude::*;
 use scraper::Node;
 
@@ -170,7 +170,24 @@ impl ContextExtractor {
         let node = tree.get_node(nodeid);
         let node_children = tree.get_child_ids(nodeid);
         if node_children.len() == 0 {
-            self.flatten_node(node, output);
+            println!(
+                "{:?}",
+                get_rich_text(
+                    node,
+                    &self.ignored_tags,
+                    self.only_keep_inline_tags,
+                    &self.discard_tags,
+                    &self.header_elements,
+                )
+            );
+            output.push(get_rich_text(
+                node,
+                &self.ignored_tags,
+                self.only_keep_inline_tags,
+                &self.discard_tags,
+                &self.header_elements,
+            ));
+            // self.flatten_node(node, output);
             return;
         }
 
@@ -207,12 +224,16 @@ impl ContextExtractor {
             match piece {
                 Enum2::Type1(child_id) => {
                     if lst.len() > 0 {
-                        output.push(get_rich_text_from_seq(
+                        let rich_text = get_rich_text_from_seq(
                             lst,
                             &self.ignored_tags,
                             self.only_keep_inline_tags,
                             &self.discard_tags,
-                        ));
+                            &self.header_elements,
+                        );
+                        if self.is_text_interesting(&rich_text) {
+                            output.push(rich_text);
+                        }
                         lst = vec![];
                     }
                     self.flatten_tree(tree, child_id, output);
@@ -223,83 +244,91 @@ impl ContextExtractor {
             }
         }
         if lst.len() > 0 {
-            output.push(get_rich_text_from_seq(
+            let rich_text = get_rich_text_from_seq(
                 lst,
                 &self.ignored_tags,
                 self.only_keep_inline_tags,
                 &self.discard_tags,
-            ));
-            lst = vec![];
-        }
-    }
-
-    fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
-        match node_ref.value() {
-            Node::Text(text) => output.push(RichText::from_str(text)),
-            Node::Element(el) => {
-                if self.discard_tags.contains(el.name()) {
-                    // skip discard tags
-                    return;
-                }
-
-                if self.header_elements.contains(el.name()) || !BLOCK_ELEMENTS.contains(el.name()) {
-                    output.push(get_rich_text(
-                        node_ref,
-                        &self.ignored_tags,
-                        self.only_keep_inline_tags,
-                        &self.discard_tags,
-                    ));
-                    return;
-                }
-
-                let mut line: Vec<Enum2<NodeRef<Node>, NodeRef<Node>>> = vec![];
-                for child_ref in node_ref.children() {
-                    if let Some(child_el) = child_ref.value().as_element() {
-                        if BLOCK_ELEMENTS.contains(child_el.name()) {
-                            line.push(Enum2::Type1(child_ref));
-                        } else {
-                            line.push(Enum2::Type2(child_ref));
-                        }
-                    } else {
-                        if child_ref.value().is_text() {
-                            line.push(Enum2::Type2(child_ref));
-                        }
-                    }
-                }
-
-                let mut lst = vec![];
-                for piece in line {
-                    match piece {
-                        Enum2::Type1(child_ref) => {
-                            if lst.len() > 0 {
-                                output.push(get_rich_text_from_seq(
-                                    lst,
-                                    &self.ignored_tags,
-                                    self.only_keep_inline_tags,
-                                    &self.discard_tags,
-                                ));
-                                lst = vec![];
-                            }
-                            self.flatten_node(&child_ref, output);
-                        }
-                        Enum2::Type2(text) => {
-                            lst.push(text);
-                        }
-                    }
-                }
-                if lst.len() > 0 {
-                    output.push(get_rich_text_from_seq(
-                        lst,
-                        &self.ignored_tags,
-                        self.only_keep_inline_tags,
-                        &self.discard_tags,
-                    ));
-                    lst = vec![];
-                }
+                &self.header_elements,
+            );
+            if self.is_text_interesting(&rich_text) {
+                output.push(rich_text);
             }
-            _ => {}
         }
     }
+
+    // fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
+    //     match node_ref.value() {
+    //         Node::Text(text) => output.push(RichText::from_str(text)),
+    //         Node::Element(el) => {
+    //             if self.discard_tags.contains(el.name()) {
+    //                 // skip discard tags
+    //                 return;
+    //             }
+
+    //             if self.header_elements.contains(el.name()) || !BLOCK_ELEMENTS.contains(el.name()) {
+    //                 output.push(get_rich_text(
+    //                     node_ref,
+    //                     &self.ignored_tags,
+    //                     self.only_keep_inline_tags,
+    //                     &self.discard_tags,
+    //                 ));
+    //                 return;
+    //             }
+
+    //             let mut line: Vec<Enum2<NodeRef<Node>, NodeRef<Node>>> = vec![];
+    //             for child_ref in node_ref.children() {
+    //                 if let Some(child_el) = child_ref.value().as_element() {
+    //                     if BLOCK_ELEMENTS.contains(child_el.name()) {
+    //                         line.push(Enum2::Type1(child_ref));
+    //                     } else {
+    //                         line.push(Enum2::Type2(child_ref));
+    //                     }
+    //                 } else {
+    //                     if child_ref.value().is_text() {
+    //                         line.push(Enum2::Type2(child_ref));
+    //                     }
+    //                 }
+    //             }
+
+    //             let mut lst = vec![];
+    //             for piece in line {
+    //                 match piece {
+    //                     Enum2::Type1(child_ref) => {
+    //                         if lst.len() > 0 {
+    //                             let rich_text = get_rich_text_from_seq(
+    //                                 lst,
+    //                                 &self.ignored_tags,
+    //                                 self.only_keep_inline_tags,
+    //                                 &self.discard_tags,
+    //                             );
+    //                             if self.is_text_interesting(&rich_text) {
+    //                                 output.push(rich_text);
+    //                             }
+    //                             lst = vec![];
+    //                         }
+    //                         self.flatten_node(&child_ref, output);
+    //                     }
+    //                     Enum2::Type2(text) => {
+    //                         lst.push(text);
+    //                     }
+    //                 }
+    //             }
+    //             if lst.len() > 0 {
+    //                 let rich_text = get_rich_text_from_seq(
+    //                     lst,
+    //                     &self.ignored_tags,
+    //                     self.only_keep_inline_tags,
+    //                     &self.discard_tags,
+    //                 );
+    //                 if self.is_text_interesting(&rich_text) {
+    //                     output.push(rich_text);
+    //                 }
+    //             }
+    //         }
+    //         _ => {}
+    //     }
+    // }
 
     /// Finding surrounding content of the element.
     ///
@@ -312,7 +341,7 @@ impl ContextExtractor {
     /// before this element (we are doing another filter outside of this function in `self.extract`).
     ///     * to determine the content after the element, we consider only the siblings
     /// and stop before they hit a block element (not all block elements) that may be in the same level such as table, etc.
-    fn locate_content_before_and_after<'s>(
+    pub fn locate_content_before_and_after<'s>(
         &self,
         element: NodeRef<'s, Node>,
     ) -> Result<(SimpleTree<NodeRef<'s, Node>>, SimpleTree<NodeRef<'s, Node>>)> {
@@ -333,7 +362,11 @@ impl ContextExtractor {
             let node = tree_before.add_node(parent_ref);
             for e in parent_ref.children() {
                 if e.id() == el.id() {
-                    // this is the index
+                    // last item before the `element`
+                    if el.id() != element.id() {
+                        // we don't want to include `element` itself
+                        tree_before.add_child(node, tree_before.get_root_id());
+                    }
                     break;
                 }
                 let child_id = tree_before.add_node(e);
@@ -363,5 +396,10 @@ impl ContextExtractor {
         }
 
         Ok((tree_before, tree_after))
+    }
+
+    // test if the text is interesting
+    pub fn is_text_interesting(&self, text: &RichText) -> bool {
+        return !(text.text.is_empty() && text.element.len() == 1 && text.get_tag() == PSEUDO_TAG);
     }
 }

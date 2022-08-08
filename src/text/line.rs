@@ -45,6 +45,7 @@ impl<'s> Line<'s> {
 
         // don't add an empty string
         if trimed_start_sentence.len() == 0 {
+            self.has_trailing_space = true;
             return;
         }
 
@@ -99,7 +100,7 @@ impl<'s> Paragraph<'s> {
             self.len += 1;
         }
         self.tokens.extend(line.tokens.iter());
-        self.len += line.tokens.len();
+        self.len += line.len();
     }
 
     #[inline(always)]
