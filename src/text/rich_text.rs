@@ -102,10 +102,10 @@ impl RichText {
 
         for token_id in it {
             let token = self.element.get_node(*token_id);
-            println!(
-                "------before\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
-                pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
-            );
+            // println!(
+            //     "------before\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
+            //     pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
+            // );
 
             while let Some(closing_tag_id) = closing_tag_ids.last() {
                 let closing_tag = self.element.get_node(*closing_tag_id);
@@ -156,10 +156,10 @@ impl RichText {
             pointer = token.start;
             closing_tag_ids.push(*token_id);
 
-            println!(
-                "------after\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
-                pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
-            );
+            // println!(
+            //     "------after\n\t>> pointer: {}\n\t>> token: {:?}\n\t>> tokens: {:?}\n\t>> closing_tags: {:?}",
+            //     pointer, token, tokens, closing_tag_ids.iter().map(|id| self.element.get_node(*id)).collect::<Vec<_>>()
+            // );
         }
 
         for closing_tag_id in closing_tag_ids.iter().rev() {

@@ -136,6 +136,9 @@ fn get_rich_text_from_stream<'s>(
         match node.value() {
             Node::Element(node_el) => {
                 let node_el_tag = node_el.name();
+                // println!(">>> element: {}", node_el_tag);
+                // println!("\t line before: {:?}", line);
+
                 if discard_tags.contains(node_el_tag) {
                     continue;
                 }
@@ -164,13 +167,13 @@ fn get_rich_text_from_stream<'s>(
                         end: paragraph.len() + line.len(),
                         attrs: convert_attrs(&node_el.attrs),
                     };
-                    println!(
-                        "text: {} - {} - {}: `{}`",
-                        node_el_tag,
-                        text_el.end,
-                        paragraph.to_string().len(),
-                        paragraph.to_string()
-                    );
+                    // println!(
+                    //     "text: {} - {} - {}: `{}`",
+                    //     node_el_tag,
+                    //     text_el.end,
+                    //     paragraph.to_string().len(),
+                    //     paragraph.to_string()
+                    // );
                     let node_id = element.add_node(text_el);
                     element.add_child(stack_ptrs.last().unwrap().1, node_id);
                     stack_ptrs.push((stream.len(), node_id));
@@ -181,11 +184,20 @@ fn get_rich_text_from_stream<'s>(
 
                 // the children of the element are added to the stream for further processing
                 stream.extend(node.children().rev());
+                // println!("\t line after: {:?}", line);
             }
             Node::Text(text) => {
+                // let prior_line = line.clone();
                 line.append(&text);
+                // println!(
+                //     ">>> text: `{}`\n\tline before `{:?}`\n\tline after `{:?}`",
+                //     &text.text.replace("\n", "\\n"),
+                //     prior_line,
+                //     line,
+                // );
             }
             Node::Document => {
+                // println!(">>> document");
                 // may be we are here because of an iframe (haven't tested) or a marker
                 // we put to breakline after escaping a block element
                 paragraph.append(&line);
@@ -197,6 +209,7 @@ fn get_rich_text_from_stream<'s>(
                 }
             }
             Node::Fragment => {
+                // println!(">>> fragment");
                 // i don't know when we may have a doc fragment except the marker we put here intentionally
                 // so if it's not our marker, we skip it
                 if stream.len() == stack_ptrs.last().unwrap().0 {
@@ -208,6 +221,24 @@ fn get_rich_text_from_stream<'s>(
                     let start_token = text_el.start;
                     let mut start_pos = text_el.end;
 
+                    // the line is not finished yet and is not yet added to the paragraph
+                    // if the line is not empty, it's guaranteed to be added, and we need to
+                    // move the start_pos by 1 (for the newline) if there is a previous line.
+                    // if the line is empty, it won't be added to the paragraph, we only
+                    // need to move start_pos by 1 (for the newline) if there will be another line
+                    // added later. however, it is difficult to determine if there will be another line.
+                    // (chosen solution) when the line is empty, if the content of the tag is not empty,
+                    // it has to be part of the previous line. but as we close the tag before we break
+                    // the line, the previous line must be the current line, recursively, the paragraph
+                    // empty and the content of the tag must be empty (contradiction), so the content of
+                    // the tag must be empty. when it is empty, it may be okay if we just put it in the
+                    // end of the previous line as it does not interfere with output text.
+                    let shifted_pos = if paragraph.len() > 0 && line.len() > 0 {
+                        1
+                    } else {
+                        0
+                    };
+
                     if paragraph.tokens.len() > start_token {
                         // this means the line that containing the first character of text_el was merged into the paragraph
                         if paragraph.tokens[start_token] == " "
@@ -217,26 +248,20 @@ fn get_rich_text_from_stream<'s>(
                             start_pos += 1;
                         }
                     } else {
-                        // the line is not finished yet and is not yet added to the paragraph
-                        // if the line is not empty, it's guaranteed to be added, and we need to
-                        // move the start_pos by 1 (for the newline)
-                        // if the line is empty, it won't be added to the paragraph, but we may still
-                        // need to move start_pos by 1 (for the newline) if there will be another line
-                        // added later.
-
                         let line_token = start_token - paragraph.tokens.len();
                         if line_token < line.tokens.len() && line.tokens[line_token] == " " {
                             start_pos += 1
                         }
+                        start_pos += shifted_pos;
                     };
                     text_el.start = start_pos;
-                    text_el.end = paragraph.len() + line.len();
-                    println!(
-                        ">> text_el {:?}, start_token: {}, paragraph.tokens: {}",
-                        text_el,
-                        start_token,
-                        paragraph.tokens.len()
-                    );
+                    text_el.end = paragraph.len() + line.len() + shifted_pos;
+                    // println!(
+                    //     ">>> text_el {:?}, start_token: {}, paragraph.tokens: {}",
+                    //     text_el,
+                    //     start_token,
+                    //     paragraph.tokens.len()
+                    // );
                 }
             }
             _ => {

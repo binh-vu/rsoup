@@ -129,6 +129,9 @@ impl ContextExtractor {
         self.flatten_tree(&tree_before, tree_before.get_root_id(), &mut context_before);
         self.flatten_tree(&tree_after, tree_after.get_root_id(), &mut context_after);
 
+        // context_before = self.split_headers(context_before);
+        // context_after = self.split_headers(context_after);
+
         let mut context = vec![ContentHierarchy::new(0, RichText::empty())];
         for c in context_before {
             if self.header_elements.contains(c.get_tag()) {
@@ -161,6 +164,30 @@ impl ContextExtractor {
         Ok(context)
     }
 
+    fn split_headers(&self, texts: Vec<RichText>) -> Vec<RichText> {
+        let mut new_texts = Vec::with_capacity(texts.len());
+        for text in texts {
+            let flag = false;
+            for n in text.element.iter() {
+                if self.header_elements.contains(&n.tag) {
+                    // the text into two parts.
+                    // The first part is the text before the header
+                    // the second part is the text after the header
+                    unimplemented!();
+                    // let mut text_before = RichText {
+                    //     text: text.text[..n.start].to_string(),
+                    //     element: SimpleTree::empty(),
+                    // };
+                    // flag = true;
+                }
+            }
+            if !flag {
+                new_texts.push(text);
+            }
+        }
+        new_texts
+    }
+
     fn flatten_tree(
         &self,
         tree: &SimpleTree<NodeRef<Node>>,
@@ -170,16 +197,16 @@ impl ContextExtractor {
         let node = tree.get_node(nodeid);
         let node_children = tree.get_child_ids(nodeid);
         if node_children.len() == 0 {
-            println!(
-                "{:?}",
-                get_rich_text(
-                    node,
-                    &self.ignored_tags,
-                    self.only_keep_inline_tags,
-                    &self.discard_tags,
-                    &self.header_elements,
-                )
-            );
+            // println!(
+            //     "{:?}",
+            //     get_rich_text(
+            //         node,
+            //         &self.ignored_tags,
+            //         self.only_keep_inline_tags,
+            //         &self.discard_tags,
+            //         &self.header_elements,
+            //     )
+            // );
             output.push(get_rich_text(
                 node,
                 &self.ignored_tags,

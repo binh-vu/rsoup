@@ -33,6 +33,10 @@ impl<'s> Line<'s> {
         self.len_before_last_sentence + self.len_last_sentence
     }
 
+    pub fn to_string(&self) -> String {
+        self.tokens.join("")
+    }
+
     /// Append a sentence to the line following the HTML whitespace rules.
     ///
     /// 1. Always remove leading spaces
@@ -45,7 +49,9 @@ impl<'s> Line<'s> {
 
         // don't add an empty string
         if trimed_start_sentence.len() == 0 {
-            self.has_trailing_space = true;
+            if self.tokens.len() > 0 {
+                self.has_trailing_space = true;
+            }
             return;
         }
 
