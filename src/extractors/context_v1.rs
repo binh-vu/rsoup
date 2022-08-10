@@ -2,11 +2,12 @@ use crate::{
     context::ContentHierarchy,
     error::TableExtractorError,
     misc::Enum2,
-    text::{get_rich_text, rich_text::PSEUDO_TAG, RichText, BLOCK_ELEMENTS},
+    text::{
+        get_rich_text, get_rich_text_from_seq, rich_text::PSEUDO_TAG, RichText, BLOCK_ELEMENTS,
+    },
 };
 
 use crate::misc::SimpleTree;
-use crate::text::get_rich_text_from_seq;
 use anyhow::Result;
 use ego_tree::NodeRef;
 use hashbrown::HashSet;
@@ -207,14 +208,14 @@ impl ContextExtractor {
             //         &self.header_elements,
             //     )
             // );
-            output.push(get_rich_text(
-                node,
-                &self.ignored_tags,
-                self.only_keep_inline_tags,
-                &self.discard_tags,
-                &self.header_elements,
-            ));
-            // self.flatten_node(node, output);
+            // output.push(get_rich_text(
+            //     node,
+            //     &self.ignored_tags,
+            //     self.only_keep_inline_tags,
+            //     &self.discard_tags,
+            //     &self.header_elements,
+            // ));
+            self.flatten_node(node, output);
             return;
         }
 
@@ -284,78 +285,82 @@ impl ContextExtractor {
         }
     }
 
-    // fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
-    //     match node_ref.value() {
-    //         Node::Text(text) => output.push(RichText::from_str(text)),
-    //         Node::Element(el) => {
-    //             if self.discard_tags.contains(el.name()) {
-    //                 // skip discard tags
-    //                 return;
-    //             }
+    fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
+        match node_ref.value() {
+            // should never go into node::text
+            Node::Text(text) => output.push(RichText::from_str(text)),
+            Node::Element(el) => {
+                if self.discard_tags.contains(el.name()) {
+                    // skip discard tags
+                    return;
+                }
 
-    //             if self.header_elements.contains(el.name()) || !BLOCK_ELEMENTS.contains(el.name()) {
-    //                 output.push(get_rich_text(
-    //                     node_ref,
-    //                     &self.ignored_tags,
-    //                     self.only_keep_inline_tags,
-    //                     &self.discard_tags,
-    //                 ));
-    //                 return;
-    //             }
+                if self.header_elements.contains(el.name()) || !BLOCK_ELEMENTS.contains(el.name()) {
+                    output.push(get_rich_text(
+                        node_ref,
+                        &self.ignored_tags,
+                        self.only_keep_inline_tags,
+                        &self.discard_tags,
+                        &self.header_elements,
+                    ));
+                    return;
+                }
 
-    //             let mut line: Vec<Enum2<NodeRef<Node>, NodeRef<Node>>> = vec![];
-    //             for child_ref in node_ref.children() {
-    //                 if let Some(child_el) = child_ref.value().as_element() {
-    //                     if BLOCK_ELEMENTS.contains(child_el.name()) {
-    //                         line.push(Enum2::Type1(child_ref));
-    //                     } else {
-    //                         line.push(Enum2::Type2(child_ref));
-    //                     }
-    //                 } else {
-    //                     if child_ref.value().is_text() {
-    //                         line.push(Enum2::Type2(child_ref));
-    //                     }
-    //                 }
-    //             }
+                let mut line: Vec<Enum2<NodeRef<Node>, NodeRef<Node>>> = vec![];
+                for child_ref in node_ref.children() {
+                    if let Some(child_el) = child_ref.value().as_element() {
+                        if BLOCK_ELEMENTS.contains(child_el.name()) {
+                            line.push(Enum2::Type1(child_ref));
+                        } else {
+                            line.push(Enum2::Type2(child_ref));
+                        }
+                    } else {
+                        if child_ref.value().is_text() {
+                            line.push(Enum2::Type2(child_ref));
+                        }
+                    }
+                }
 
-    //             let mut lst = vec![];
-    //             for piece in line {
-    //                 match piece {
-    //                     Enum2::Type1(child_ref) => {
-    //                         if lst.len() > 0 {
-    //                             let rich_text = get_rich_text_from_seq(
-    //                                 lst,
-    //                                 &self.ignored_tags,
-    //                                 self.only_keep_inline_tags,
-    //                                 &self.discard_tags,
-    //                             );
-    //                             if self.is_text_interesting(&rich_text) {
-    //                                 output.push(rich_text);
-    //                             }
-    //                             lst = vec![];
-    //                         }
-    //                         self.flatten_node(&child_ref, output);
-    //                     }
-    //                     Enum2::Type2(text) => {
-    //                         lst.push(text);
-    //                     }
-    //                 }
-    //             }
-    //             if lst.len() > 0 {
-    //                 let rich_text = get_rich_text_from_seq(
-    //                     lst,
-    //                     &self.ignored_tags,
-    //                     self.only_keep_inline_tags,
-    //                     &self.discard_tags,
-    //                 );
-    //                 if self.is_text_interesting(&rich_text) {
-    //                     output.push(rich_text);
-    //                 }
-    //             }
-    //         }
-    //         _ => {}
-    //     }
-    // }
+                let mut lst = vec![];
+                for piece in line {
+                    match piece {
+                        Enum2::Type1(child_ref) => {
+                            if lst.len() > 0 {
+                                let rich_text = get_rich_text_from_seq(
+                                    lst,
+                                    &self.ignored_tags,
+                                    self.only_keep_inline_tags,
+                                    &self.discard_tags,
+                                    &self.header_elements,
+                                );
+                                if self.is_text_interesting(&rich_text) {
+                                    output.push(rich_text);
+                                }
+                                lst = vec![];
+                            }
+                            self.flatten_node(&child_ref, output);
+                        }
+                        Enum2::Type2(text) => {
+                            lst.push(text);
+                        }
+                    }
+                }
+                if lst.len() > 0 {
+                    let rich_text = get_rich_text_from_seq(
+                        lst,
+                        &self.ignored_tags,
+                        self.only_keep_inline_tags,
+                        &self.discard_tags,
+                        &self.header_elements,
+                    );
+                    if self.is_text_interesting(&rich_text) {
+                        output.push(rich_text);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 
     /// Finding surrounding content of the element.
     ///
