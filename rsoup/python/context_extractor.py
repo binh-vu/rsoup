@@ -16,7 +16,7 @@ from typing import (
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 from dataclasses import dataclass, field
-from table_extractor.python.models.context import (
+from rsoup.python.models.context import (
     Attribute,
     Text,
     Linebreak,
