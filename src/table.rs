@@ -6,6 +6,7 @@ use pyo3::{
     types::{PyBytes, PyDict},
 };
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[pyclass(module = "rsoup.rsoup")]
@@ -214,6 +215,17 @@ impl Table {
     fn from_bytes(bytes: &PyBytes) -> Result<Table> {
         let table = postcard::from_bytes(bytes.as_bytes())?;
         Ok(table)
+    }
+
+    fn to_json(&self) -> Result<String> {
+        let out = serde_json::to_string(self)?;
+        Ok(out)
+    }
+
+    #[staticmethod]
+    fn from_json(dat: &str) -> Result<Table> {
+        let out = serde_json::from_str(dat)?;
+        Ok(out)
     }
 
     fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
