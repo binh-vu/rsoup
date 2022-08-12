@@ -44,7 +44,7 @@ pub struct Cell {
     pub colspan: u16,
     #[pyo3(get)]
     pub attrs: HashMap<String, String>,
-    #[pyo3(get)]
+    #[pyo3(get, set)]
     pub value: RichText,
     // raw html of the cell
     #[pyo3(get)]

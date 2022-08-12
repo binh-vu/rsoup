@@ -15,10 +15,10 @@ pub struct ContentHierarchy {
     pub heading: RichText,
     // content of each level (with the trace), the trace includes information
     // of the containing element
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub content_before: Vec<RichText>,
     // only non empty if this is at the same level of the table (lowest level)
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub content_after: Vec<RichText>,
 }
 
