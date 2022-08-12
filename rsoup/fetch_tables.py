@@ -1,6 +1,6 @@
 import requests
 from typing import Callable, Optional
-from table_extractor.python.table_extractor import HTMLTableExtractor
+from rsoup.python.table_extractor import HTMLTableExtractor
 
 
 def fetch_tables(

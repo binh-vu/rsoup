@@ -1,7 +1,10 @@
 use crate::{
     context::ContentHierarchy,
     error::TableExtractorError,
-    misc::Enum2,
+    misc::{
+        recursive_iter::{ExitingSeqState, RecurInvocationBuilder},
+        InvState, InvTree,
+    },
     text::{
         get_rich_text, get_rich_text_from_seq, rich_text::PSEUDO_TAG, RichText, BLOCK_ELEMENTS,
     },
@@ -15,7 +18,7 @@ use pyo3::prelude::*;
 use scraper::Node;
 
 #[derive(Clone)]
-#[pyclass(module = "table_extractor.table_extractor")]
+#[pyclass(module = "rsoup.rsoup")]
 pub struct ContextExtractor {
     // do not include those tags in the rich text
     ignored_tags: HashSet<String>,
@@ -118,7 +121,7 @@ impl ContextExtractor {
     /// and which one is not. However, it does not take into account the style of element (display: block)
     /// and hence has to rely on some heuristics. For example, <canvas> is an inline element, however, it
     /// is often used as block element so this extractor put it in another line.
-    pub fn extractor_context<'s>(
+    pub fn extract_context<'s>(
         &self,
         table_el: NodeRef<'s, Node>,
     ) -> Result<Vec<ContentHierarchy>> {
@@ -127,11 +130,10 @@ impl ContextExtractor {
         let mut context_before: Vec<RichText> = vec![];
         let mut context_after: Vec<RichText> = vec![];
 
-        self.flatten_tree(&tree_before, tree_before.get_root_id(), &mut context_before);
-        self.flatten_tree(&tree_after, tree_after.get_root_id(), &mut context_after);
-
-        // context_before = self.split_headers(context_before);
-        // context_after = self.split_headers(context_after);
+        self.flatten_tree_recur(&tree_before, tree_before.get_root_id(), &mut context_before);
+        self.flatten_tree_recur(&tree_after, tree_after.get_root_id(), &mut context_after);
+        // self.flatten_tree(&tree_before, &mut context_before);
+        // self.flatten_tree(&tree_after, &mut context_after);
 
         let mut context = vec![ContentHierarchy::new(0, RichText::empty())];
         for c in context_before {
@@ -165,31 +167,240 @@ impl ContextExtractor {
         Ok(context)
     }
 
-    fn split_headers(&self, texts: Vec<RichText>) -> Vec<RichText> {
-        let mut new_texts = Vec::with_capacity(texts.len());
-        for text in texts {
-            let flag = false;
-            for n in text.element.iter() {
-                if self.header_elements.contains(&n.tag) {
-                    // the text into two parts.
-                    // The first part is the text before the header
-                    // the second part is the text after the header
-                    unimplemented!();
-                    // let mut text_before = RichText {
-                    //     text: text.text[..n.start].to_string(),
-                    //     element: SimpleTree::empty(),
-                    // };
-                    // flag = true;
+    pub fn flatten_tree(&self, tree: &SimpleTree<NodeRef<Node>>, output: &mut Vec<RichText>) {
+        let mut inv_tree = InvTree::new(vec![tree.get_root_id()]);
+        let mut pending_ops = Vec::new();
+
+        while let Some(inv) = inv_tree.next() {
+            match inv.state {
+                InvState::Entering(nodeid) => {
+                    let node = tree.get_node(nodeid);
+                    let node_children = tree.get_child_ids(nodeid);
+                    if node_children.len() == 0 {
+                        self.flatten_node(node, output);
+                        continue;
+                    }
+
+                    let node_el = node.value().as_element().unwrap();
+                    if !BLOCK_ELEMENTS.contains(node_el.name()) {
+                        // inline element, but why it's here with a subtree?
+                        // this should never happen
+                        // silent the error for now
+                        let mut next_invs = RecurInvocationBuilder::new();
+                        for child_id in node_children {
+                            next_invs.push(0, *child_id);
+                        }
+                        inv_tree.add_recur_invocations(
+                            &inv,
+                            ExitingSeqState::new(),
+                            next_invs.return_ids,
+                            next_invs.invocations,
+                        );
+                        continue;
+                    }
+
+                    // block element, have to check its children
+                    let mut exiting_state = ExitingSeqState::new();
+                    let mut next_invs = RecurInvocationBuilder::new();
+
+                    for child_id in node_children {
+                        let child_ref = tree.get_node(*child_id);
+                        match child_ref.value() {
+                            Node::Element(child_el) => {
+                                if !BLOCK_ELEMENTS.contains(child_el.name()) {
+                                    pending_ops.push(*child_ref);
+                                    continue;
+                                }
+
+                                if pending_ops.len() > 0 {
+                                    let rich_text = get_rich_text_from_seq(
+                                        pending_ops,
+                                        &self.ignored_tags,
+                                        self.only_keep_inline_tags,
+                                        &self.discard_tags,
+                                        &self.header_elements,
+                                    );
+                                    if self.is_text_interesting(&rich_text) {
+                                        if next_invs.len() > 0 {
+                                            exiting_state.push(rich_text);
+                                        } else {
+                                            output.push(rich_text);
+                                        }
+                                    }
+                                    pending_ops = Vec::new();
+                                }
+
+                                // put the next node here
+                                next_invs.push(exiting_state.len(), *child_id);
+                            }
+                            Node::Text(_) => {
+                                pending_ops.push(*child_ref);
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if pending_ops.len() > 0 {
+                        let rich_text = get_rich_text_from_seq(
+                            pending_ops,
+                            &self.ignored_tags,
+                            self.only_keep_inline_tags,
+                            &self.discard_tags,
+                            &self.header_elements,
+                        );
+                        if self.is_text_interesting(&rich_text) {
+                            if next_invs.len() > 0 {
+                                exiting_state.push(rich_text);
+                            } else {
+                                output.push(rich_text);
+                            }
+                        }
+                        pending_ops = Vec::new();
+                    }
+
+                    if next_invs.invocations.len() > 0 {
+                        inv_tree.add_recur_invocations(
+                            &inv,
+                            exiting_state,
+                            next_invs.return_ids,
+                            next_invs.invocations,
+                        );
+                    }
+                }
+                InvState::Exiting(exiting_state) => {
+                    if let Some(parent_id) = inv.parent_id {
+                        let parent_exit_state = inv_tree.get_mut_parent_state(parent_id);
+                        for _ in parent_exit_state.n_consumed..inv.return_id {
+                            output.push(parent_exit_state.pop());
+                        }
+                    }
+                    output.extend(exiting_state.consume());
                 }
             }
-            if !flag {
-                new_texts.push(text);
-            }
         }
-        new_texts
     }
 
-    fn flatten_tree(
+    pub fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
+        let mut inv_tree = InvTree::new(vec![*node_ref]);
+        let mut pending_ops = Vec::new();
+
+        while let Some(inv) = inv_tree.next() {
+            match inv.state {
+                InvState::Entering(node_ref) => {
+                    match node_ref.value() {
+                        Node::Element(el) => {
+                            if self.discard_tags.contains(el.name()) {
+                                // skip discard tags
+                                continue;
+                            }
+
+                            if self.header_elements.contains(el.name())
+                                || !BLOCK_ELEMENTS.contains(el.name())
+                            {
+                                output.push(get_rich_text(
+                                    &node_ref,
+                                    &self.ignored_tags,
+                                    self.only_keep_inline_tags,
+                                    &self.discard_tags,
+                                    &self.header_elements,
+                                ));
+                                continue;
+                            }
+
+                            let mut exiting_state = ExitingSeqState::new();
+                            let mut next_invs = RecurInvocationBuilder::new();
+
+                            for child_ref in node_ref.children() {
+                                match child_ref.value() {
+                                    Node::Element(child_el) => {
+                                        if !BLOCK_ELEMENTS.contains(child_el.name()) {
+                                            pending_ops.push(child_ref);
+                                            continue;
+                                        }
+
+                                        if pending_ops.len() > 0 {
+                                            let rich_text = get_rich_text_from_seq(
+                                                pending_ops,
+                                                &self.ignored_tags,
+                                                self.only_keep_inline_tags,
+                                                &self.discard_tags,
+                                                &self.header_elements,
+                                            );
+                                            if self.is_text_interesting(&rich_text) {
+                                                if next_invs.len() > 0 {
+                                                    exiting_state.push(rich_text);
+                                                } else {
+                                                    output.push(rich_text);
+                                                }
+                                            }
+                                            pending_ops = Vec::new();
+                                        }
+
+                                        // put the next node here
+                                        next_invs.push(exiting_state.len(), child_ref);
+                                    }
+                                    Node::Text(_) => {
+                                        pending_ops.push(child_ref);
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            if pending_ops.len() > 0 {
+                                let rich_text = get_rich_text_from_seq(
+                                    pending_ops,
+                                    &self.ignored_tags,
+                                    self.only_keep_inline_tags,
+                                    &self.discard_tags,
+                                    &self.header_elements,
+                                );
+                                if self.is_text_interesting(&rich_text) {
+                                    if next_invs.len() > 0 {
+                                        exiting_state.push(rich_text);
+                                    } else {
+                                        output.push(rich_text);
+                                    }
+                                }
+                                pending_ops = Vec::new();
+                            }
+                            // println!(">>> Before add recur.{}", inv_tree.debug_info());
+                            if next_invs.invocations.len() > 0 {
+                                inv_tree.add_recur_invocations(
+                                    &inv,
+                                    exiting_state,
+                                    next_invs.return_ids,
+                                    next_invs.invocations,
+                                );
+                            }
+                            // println!(">>> After add recur.{}", inv_tree.debug_info());
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                InvState::Exiting(exiting_state) => {
+                    // println!(
+                    //     "Entering exit of node: {}. Debug info: {}",
+                    //     inv_tree.stack.len(),
+                    //     inv_tree.debug_info()
+                    // );
+
+                    // resume the code here.
+                    // clear out previous pending ops
+                    if let Some(parent_id) = inv.parent_id {
+                        let parent_exit_state = inv_tree.get_mut_parent_state(parent_id);
+                        // println!("{}..{}", parent_exit_state.n_consumed, inv.return_id);
+                        for _ in parent_exit_state.n_consumed..inv.return_id {
+                            output.push(parent_exit_state.pop());
+                        }
+                    }
+                    // println!("{:?}", exiting_state);
+                    output.extend(exiting_state.consume());
+                }
+            }
+        }
+    }
+
+    pub fn flatten_tree_recur(
         &self,
         tree: &SimpleTree<NodeRef<Node>>,
         nodeid: usize,
@@ -198,24 +409,7 @@ impl ContextExtractor {
         let node = tree.get_node(nodeid);
         let node_children = tree.get_child_ids(nodeid);
         if node_children.len() == 0 {
-            // println!(
-            //     "{:?}",
-            //     get_rich_text(
-            //         node,
-            //         &self.ignored_tags,
-            //         self.only_keep_inline_tags,
-            //         &self.discard_tags,
-            //         &self.header_elements,
-            //     )
-            // );
-            // output.push(get_rich_text(
-            //     node,
-            //     &self.ignored_tags,
-            //     self.only_keep_inline_tags,
-            //     &self.discard_tags,
-            //     &self.header_elements,
-            // ));
-            self.flatten_node(node, output);
+            self.flatten_node_recur(node, output);
             return;
         }
 
@@ -225,35 +419,26 @@ impl ContextExtractor {
             // this should never happen
             // silent the error for now
             for childid in node_children {
-                self.flatten_tree(tree, *childid, output);
+                self.flatten_tree_recur(tree, *childid, output);
             }
             return;
         }
 
         // block element, have to check its children
-        let mut line: Vec<Enum2<usize, NodeRef<Node>>> = vec![];
-        for childid in node_children {
-            let child_ref = tree.get_node(*childid);
-            if let Some(child_el) = child_ref.value().as_element() {
-                if BLOCK_ELEMENTS.contains(child_el.name()) {
-                    line.push(Enum2::Type1(*childid));
-                } else {
-                    line.push(Enum2::Type2(*child_ref));
-                }
-            } else {
-                if child_ref.value().is_text() {
-                    line.push(Enum2::Type2(*child_ref));
-                }
-            }
-        }
+        let mut pending_ops = Vec::new();
+        for child_id in node_children {
+            let child_ref = tree.get_node(*child_id);
+            match child_ref.value() {
+                Node::Text(_) => pending_ops.push(*child_ref),
+                Node::Element(child_el) => {
+                    if !BLOCK_ELEMENTS.contains(child_el.name()) {
+                        pending_ops.push(*child_ref);
+                        continue;
+                    }
 
-        let mut lst = vec![];
-        for piece in line {
-            match piece {
-                Enum2::Type1(child_id) => {
-                    if lst.len() > 0 {
+                    if pending_ops.len() > 0 {
                         let rich_text = get_rich_text_from_seq(
-                            lst,
+                            pending_ops,
                             &self.ignored_tags,
                             self.only_keep_inline_tags,
                             &self.discard_tags,
@@ -262,18 +447,18 @@ impl ContextExtractor {
                         if self.is_text_interesting(&rich_text) {
                             output.push(rich_text);
                         }
-                        lst = vec![];
+                        pending_ops = Vec::new();
                     }
-                    self.flatten_tree(tree, child_id, output);
+
+                    self.flatten_tree_recur(tree, *child_id, output);
                 }
-                Enum2::Type2(node_) => {
-                    lst.push(node_);
-                }
+                _ => {}
             }
         }
-        if lst.len() > 0 {
+
+        if pending_ops.len() > 0 {
             let rich_text = get_rich_text_from_seq(
-                lst,
+                pending_ops,
                 &self.ignored_tags,
                 self.only_keep_inline_tags,
                 &self.discard_tags,
@@ -285,7 +470,7 @@ impl ContextExtractor {
         }
     }
 
-    fn flatten_node(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
+    pub fn flatten_node_recur(&self, node_ref: &NodeRef<Node>, output: &mut Vec<RichText>) {
         match node_ref.value() {
             // should never go into node::text
             Node::Text(text) => output.push(RichText::from_str(text)),
@@ -306,28 +491,19 @@ impl ContextExtractor {
                     return;
                 }
 
-                let mut line: Vec<Enum2<NodeRef<Node>, NodeRef<Node>>> = vec![];
+                let mut pending_ops = Vec::new();
                 for child_ref in node_ref.children() {
-                    if let Some(child_el) = child_ref.value().as_element() {
-                        if BLOCK_ELEMENTS.contains(child_el.name()) {
-                            line.push(Enum2::Type1(child_ref));
-                        } else {
-                            line.push(Enum2::Type2(child_ref));
-                        }
-                    } else {
-                        if child_ref.value().is_text() {
-                            line.push(Enum2::Type2(child_ref));
-                        }
-                    }
-                }
+                    match child_ref.value() {
+                        Node::Text(_) => pending_ops.push(child_ref),
+                        Node::Element(child_el) => {
+                            if !BLOCK_ELEMENTS.contains(child_el.name()) {
+                                pending_ops.push(child_ref);
+                                continue;
+                            }
 
-                let mut lst = vec![];
-                for piece in line {
-                    match piece {
-                        Enum2::Type1(child_ref) => {
-                            if lst.len() > 0 {
+                            if pending_ops.len() > 0 {
                                 let rich_text = get_rich_text_from_seq(
-                                    lst,
+                                    pending_ops,
                                     &self.ignored_tags,
                                     self.only_keep_inline_tags,
                                     &self.discard_tags,
@@ -336,18 +512,18 @@ impl ContextExtractor {
                                 if self.is_text_interesting(&rich_text) {
                                     output.push(rich_text);
                                 }
-                                lst = vec![];
+                                pending_ops = Vec::new();
                             }
-                            self.flatten_node(&child_ref, output);
+
+                            self.flatten_node_recur(&child_ref, output);
                         }
-                        Enum2::Type2(text) => {
-                            lst.push(text);
-                        }
+                        _ => {}
                     }
                 }
-                if lst.len() > 0 {
+
+                if pending_ops.len() > 0 {
                     let rich_text = get_rich_text_from_seq(
-                        lst,
+                        pending_ops,
                         &self.ignored_tags,
                         self.only_keep_inline_tags,
                         &self.discard_tags,

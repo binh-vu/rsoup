@@ -5,18 +5,18 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag, NavigableString
 from typing import Iterable, List, Union, cast
 
-from table_extractor.python.models.html_table import (
+from rsoup.python.models.html_table import (
     HTMLTable,
     HTMLTableCell,
     HTMLTableRow,
     HTMLTableCellHTMLElement,
 )
-from table_extractor.exceptions import (
+from rsoup.exceptions import (
     InvalidCellSpanException,
     InvalidColumnSpanException,
     OverlapSpanException,
 )
-from table_extractor.python.context_extractor import ContextExtractor
+from rsoup.python.context_extractor import ContextExtractor
 
 # bs4 PageElement is a subclass and only has two children: Tag and NavigableString
 # re-define the type here as pylance can't infer it correctly (maybe because PageElement isn't abstract class)

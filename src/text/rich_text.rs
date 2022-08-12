@@ -2,12 +2,13 @@ use hashbrown::HashMap;
 use std::fmt;
 
 use crate::misc::{ITree, SimpleTree};
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
+use serde::{Deserialize, Serialize};
 
 pub const PSEUDO_TAG: &str = "";
 
-#[derive(Clone, PartialEq, Eq)]
-#[pyclass(module = "table_extractor.table_extractor")]
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[pyclass(module = "rsoup.rsoup")]
 pub struct RichText {
     #[pyo3(get)]
     pub text: String,
@@ -19,8 +20,8 @@ pub struct RichText {
 }
 
 /// Represent an html element.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[pyclass(module = "table_extractor.table_extractor")]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[pyclass(module = "rsoup.rsoup")]
 pub struct RichTextElement {
     #[pyo3(get)]
     pub tag: String,
@@ -28,6 +29,7 @@ pub struct RichTextElement {
     pub start: usize,
     #[pyo3(get)]
     pub end: usize,
+    #[pyo3(get)]
     pub attrs: HashMap<String, String>,
 }
 
@@ -183,9 +185,24 @@ impl RichText {
 
 #[pymethods]
 impl RichText {
-    #[getter]
-    fn text(&self) -> PyResult<&String> {
-        Ok(&self.text)
+    pub fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let tree = PyDict::new(py);
+
+        tree.set_item("root", self.element.get_root_id())?;
+        tree.set_item(
+            "nodes",
+            self.element
+                .iter()
+                .iter()
+                .map(|u| u.to_dict(py))
+                .collect::<PyResult<Vec<_>>>()?,
+        )?;
+        tree.set_item("node2children", &self.element.node2children)?;
+
+        let d = PyDict::new(py);
+        d.set_item("text", &self.text)?;
+        d.set_item("element", tree)?;
+        Ok(d.into_py(py))
     }
 }
 
@@ -197,6 +214,15 @@ impl RichTextElement {
 
     fn has_attr(&self, name: &str) -> PyResult<bool> {
         Ok(self.attrs.contains_key(name))
+    }
+
+    fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let d = PyDict::new(py);
+        d.set_item("tag", &self.tag)?;
+        d.set_item("start", self.start)?;
+        d.set_item("end", self.end)?;
+        d.set_item("attrs", &self.attrs)?;
+        Ok(d.into_py(py))
     }
 }
 

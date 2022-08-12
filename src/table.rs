@@ -1,34 +1,53 @@
 use crate::{context::ContentHierarchy, error::TableExtractorError, text::RichText};
+use anyhow::Result;
 use hashbrown::HashMap;
-use pyo3::prelude::*;
+use pyo3::{
+    prelude::*,
+    types::{PyBytes, PyDict},
+};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
-#[pyclass(module = "table_extractor.table_extractor")]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[pyclass(module = "rsoup.rsoup")]
 pub struct Table {
+    #[pyo3(get, set)]
     pub id: String,
+    #[pyo3(get, set)]
     pub url: String,
+    #[pyo3(get, set)]
     pub caption: String,
+    #[pyo3(get)]
     pub attrs: HashMap<String, String>,
+    #[pyo3(get)]
     pub context: Vec<ContentHierarchy>,
+    #[pyo3(get)]
     pub rows: Vec<Row>,
 }
 
-#[derive(Debug, Clone)]
-#[pyclass(module = "table_extractor.table_extractor")]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[pyclass(module = "rsoup.rsoup")]
 pub struct Row {
+    #[pyo3(get)]
     pub cells: Vec<Cell>,
+    #[pyo3(get)]
     pub attrs: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone)]
-#[pyclass(module = "table_extractor.table_extractor")]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[pyclass(module = "rsoup.rsoup")]
 pub struct Cell {
+    #[pyo3(get, set)]
     pub is_header: bool,
+    #[pyo3(get, set)]
     pub rowspan: u16,
+    #[pyo3(get, set)]
     pub colspan: u16,
+    #[pyo3(get)]
     pub attrs: HashMap<String, String>,
+    #[pyo3(get)]
     pub value: RichText,
     // raw html of the cell
+    #[pyo3(get)]
     pub html: String,
 }
 
@@ -181,5 +200,79 @@ impl Table {
             context: self.context.clone(),
             rows: rows,
         })
+    }
+}
+
+#[pymethods]
+impl Table {
+    fn to_bytes(&self) -> Result<Vec<u8>> {
+        let out = postcard::to_allocvec(self)?;
+        Ok(out)
+    }
+
+    #[staticmethod]
+    fn from_bytes(bytes: &PyBytes) -> Result<Table> {
+        let table = postcard::from_bytes(bytes.as_bytes())?;
+        Ok(table)
+    }
+
+    fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let o = PyDict::new(py);
+
+        o.set_item("id", &self.id)?;
+        o.set_item("url", &self.url)?;
+        o.set_item("caption", &self.caption)?;
+        o.set_item("attrs", &self.attrs)?;
+        o.set_item(
+            "context",
+            &self
+                .context
+                .iter()
+                .map(|c| c.to_dict(py))
+                .collect::<PyResult<Vec<_>>>()?,
+        )?;
+        o.set_item(
+            "rows",
+            &self
+                .rows
+                .iter()
+                .map(|r| r.to_dict(py))
+                .collect::<PyResult<Vec<_>>>()?,
+        )?;
+
+        Ok(o.into_py(py))
+    }
+}
+
+#[pymethods]
+impl Row {
+    fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let o = PyDict::new(py);
+
+        o.set_item("attrs", &self.attrs)?;
+        o.set_item(
+            "cells",
+            &self
+                .cells
+                .iter()
+                .map(|c| c.to_dict(py))
+                .collect::<PyResult<Vec<_>>>()?,
+        )?;
+        Ok(o.into_py(py))
+    }
+}
+
+#[pymethods]
+impl Cell {
+    fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let o = PyDict::new(py);
+
+        o.set_item("is_header", &self.is_header)?;
+        o.set_item("rowspan", self.rowspan)?;
+        o.set_item("colspan", self.colspan)?;
+        o.set_item("attrs", &self.attrs)?;
+        o.set_item("value", self.value.to_dict(py)?)?;
+        o.set_item("html", &self.html)?;
+        Ok(o.into_py(py))
     }
 }

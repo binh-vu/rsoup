@@ -11,7 +11,7 @@ pub mod table;
 pub mod text;
 
 #[pymodule]
-fn table_extractor(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn rsoup(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<self::table::Table>()?;
     m.add_class::<self::table::Row>()?;
     m.add_class::<self::table::Cell>()?;

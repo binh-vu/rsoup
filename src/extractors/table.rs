@@ -15,7 +15,7 @@ use url::Url;
 use super::context_v1::ContextExtractor;
 use super::Document;
 
-#[pyclass(module = "table_extractor.table_extractor")]
+#[pyclass(module = "rsoup.rsoup")]
 pub struct TableExtractor {
     ignored_tags: HashSet<String>,
     discard_tags: HashSet<String>,
@@ -147,7 +147,7 @@ impl TableExtractor {
 
         if extract_context {
             for i in 0..tables.len() {
-                tables[i].context = self.context_extractor.extractor_context(*table_els[i])?;
+                tables[i].context = self.context_extractor.extract_context(*table_els[i])?;
             }
         }
 

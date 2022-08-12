@@ -1,10 +1,8 @@
-use hashbrown::HashMap;
-use serde_json::json;
-
 use super::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
+use serde::{Deserialize, Serialize};
 
 /// A simple vector-based tree. Nodes are ordered based on their insertion order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct SimpleTree<N> {
     root: usize,
     nodes: Vec<N>,

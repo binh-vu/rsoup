@@ -5,7 +5,7 @@ pub mod table;
 
 use pyo3::prelude::*;
 
-#[pyclass(module = "table_extractor.table_extractor", unsendable)]
+#[pyclass(module = "rsoup.rsoup", unsendable)]
 pub struct Document {
     url: String,
     html: Html,

@@ -1,30 +1,37 @@
 [package]
-name = "table-extractor"
+name = "rsoup"
 version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "table_extractor"
+name = "rsoup"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = { version = "1.0.59", features = ["backtrace"] }
+criterion = "0.3.6"
 ego-tree = "0.6.2"
-hashbrown = "0.12.3"
+hashbrown = { version = "0.12.3", features = ["serde"] }
 html5ever = "0.26.0"
 lazy_static = "1.4.0"
 phf = { version = "0.11.0", features = ["macros"] }
-pyo3 = { version = "0.16.3", features = ["anyhow"] }
+postcard = { version = "1.0.1", features = ["alloc"] }
+pyo3 = { version = "0.16.3", features = ["anyhow", "hashbrown"] } 
 regex = "1.6.0"
 scraper = "0.13.0"
 selectors = "0.23.0"
+serde = "1.0.143"
 serde_json = { version = "1.0.83", features = ["preserve_order"] }
+smallvec = "1.9.0"
 soup = "0.5.1"
 thiserror = "1.0.32"
 url = "2.2.2"
 
 [features]
 extension-module = ["pyo3/extension-module"]
-# default = ["extension-module"]
-default = []
+default = ["extension-module"]
+
+[[bench]]
+name = "context_recursive_extractor_benchmark"
+harness = false

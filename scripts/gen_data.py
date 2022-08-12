@@ -1,5 +1,5 @@
 from pathlib import Path
-from table_extractor.fetch_tables import default_fetch
+from rsoup.fetch_tables import default_fetch
 
 
 def fix_url(html: str):

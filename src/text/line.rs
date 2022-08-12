@@ -33,6 +33,7 @@ impl<'s> Line<'s> {
         self.len_before_last_sentence + self.len_last_sentence
     }
 
+    #[allow(dead_code)]
     pub fn to_string(&self) -> String {
         self.tokens.join("")
     }
