@@ -5,10 +5,9 @@ pub mod table;
 
 use pyo3::prelude::*;
 
-#[pyclass(unsendable)]
+#[pyclass(module = "rsoup.rsoup", unsendable)]
 pub struct Document {
     url: String,
-    doc: String,
     html: Html,
 }
 
@@ -17,6 +16,6 @@ impl Document {
     #[new]
     pub fn new(url: String, doc: String) -> Self {
         let html = Html::parse_document(&doc);
-        Document { url, doc, html }
+        Document { url, html }
     }
 }

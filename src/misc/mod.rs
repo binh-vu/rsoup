@@ -1,8 +1,10 @@
+pub mod recursive_iter;
 pub mod tree;
 
 use hashbrown::HashMap;
 use scraper::node::Attributes;
 
+pub use self::recursive_iter::{InvNode, InvState, InvTree};
 pub use self::tree::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
 pub use self::tree::simple_tree::SimpleTree;
 

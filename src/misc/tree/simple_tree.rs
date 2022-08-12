@@ -1,12 +1,12 @@
 use super::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
-use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// A simple vector-based tree. Nodes are ordered based on their insertion order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct SimpleTree<N> {
     root: usize,
     nodes: Vec<N>,
-    node2children: Vec<Vec<usize>>,
+    pub node2children: Vec<Vec<usize>>,
 }
 
 impl<N> SimpleTree<N> {
@@ -98,9 +98,22 @@ impl<N> SimpleTree<N> {
         self.nodes.len()
     }
 
+    pub fn merge_subtree(&mut self, parent_id: usize, mut subtree: SimpleTree<N>) {
+        let id_offset = self.nodes.len();
+        self.nodes.extend(subtree.nodes.into_iter());
+        // update ids of children in node => children in the subtree
+        for children in subtree.node2children.iter_mut() {
+            for child_id in children {
+                *child_id += id_offset;
+            }
+        }
+        self.node2children.extend(subtree.node2children.into_iter());
+        self.node2children[parent_id].push(subtree.root + id_offset);
+    }
+
     /// Merge direct children of root of the subtree into this tree
     pub fn merge_subtree_no_root(&mut self, parent_id: usize, mut subtree: SimpleTree<N>) {
-        let mut id_offset = self.nodes.len();
+        let id_offset = self.nodes.len();
         let subtree_root = subtree.get_root_id();
 
         let mut it = subtree.nodes.into_iter();
@@ -111,7 +124,7 @@ impl<N> SimpleTree<N> {
         self.nodes.extend(it);
 
         // update ids of children in node => children in the subtree
-        for (i, children) in subtree.node2children.iter_mut().enumerate() {
+        for children in subtree.node2children.iter_mut() {
             for child_id in children {
                 if *child_id > subtree_root {
                     *child_id += id_offset - 1;
@@ -129,6 +142,48 @@ impl<N> SimpleTree<N> {
         }
         it.next();
         self.node2children.extend(it);
+    }
+
+    pub fn validate(&self) -> bool {
+        let mut is_valid = true;
+        for child_ids in &self.node2children {
+            is_valid = is_valid
+                && child_ids
+                    .iter()
+                    .all(|&child_id| child_id < self.nodes.len());
+        }
+        is_valid = is_valid && self.iter_id_preorder().count() == self.nodes.len();
+        is_valid
+    }
+
+    pub fn to_string(&self, key: &dyn Fn(usize) -> String) -> String {
+        let mut buffer = Vec::<String>::with_capacity(self.len());
+
+        struct RecurFn<'s> {
+            f: &'s dyn Fn(&RecurFn, usize, usize, &mut Vec<String>),
+        }
+        let func = RecurFn {
+            f: &|func, node_id: usize, depth: usize, buffer: &mut Vec<String>| {
+                let indent = " ".repeat(depth * 4);
+
+                buffer.push(indent.clone());
+                buffer.push(key(node_id));
+
+                if self.node2children[node_id].len() > 0 {
+                    buffer.push(" -> {\n".to_owned());
+                    for child_id in self.node2children[node_id].iter() {
+                        (func.f)(func, *child_id, depth + 1, buffer);
+                    }
+                    buffer.push(indent);
+                    buffer.push("}\n".to_owned());
+                } else {
+                    buffer.push("\n".to_owned());
+                }
+            },
+        };
+
+        (func.f)(&func, self.root, 0, &mut buffer);
+        buffer.join("")
     }
 }
 
