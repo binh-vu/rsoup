@@ -18,7 +18,7 @@ pub struct Cell {
     pub attrs: HashMap<String, String>,
     // include the outer tags of the cell
     #[pyo3(get, set)]
-    pub value: RichText,
+    pub value: Py<RichText>,
     // raw html of the cell
     #[pyo3(get)]
     pub html: String,
@@ -33,7 +33,7 @@ impl Cell {
         o.set_item("rowspan", self.rowspan)?;
         o.set_item("colspan", self.colspan)?;
         o.set_item("attrs", &self.attrs)?;
-        o.set_item("value", self.value.to_dict(py)?)?;
+        o.set_item("value", self.value.as_ref(py).borrow().to_dict(py)?)?;
         o.set_item("html", &self.html)?;
         Ok(o.into_py(py))
     }

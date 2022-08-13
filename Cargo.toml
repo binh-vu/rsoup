@@ -17,7 +17,7 @@ html5ever = "0.26.0"
 lazy_static = "1.4.0"
 phf = { version = "0.11.0", features = ["macros"] }
 postcard = { version = "1.0.1", features = ["alloc"] }
-pyo3 = { version = "0.16.3", features = ["anyhow", "hashbrown"] } 
+pyo3 = { version = "0.16.3", features = ["anyhow", "hashbrown", "serde"] } 
 regex = "1.6.0"
 scraper = "0.13.0"
 selectors = "0.23.0"

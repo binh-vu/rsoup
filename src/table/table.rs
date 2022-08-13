@@ -129,19 +129,22 @@ impl Table {
             rows: data,
         })
     }
+}
 
+#[pymethods]
+impl Table {
     /// Pad an irregular table (missing cells) to make it become a regular table
     ///
     /// This function only return new table when it's padded, otherwise, None.
-    pub fn pad(&self) -> Option<Table> {
+    pub fn pad(&self, py: Python) -> PyResult<Option<Table>> {
         if self.rows.len() == 0 {
-            return None;
+            return Ok(None);
         }
 
         let ncols = self.rows[0].cells.len();
         let is_regular_table = self.rows.iter().all(|row| row.cells.len() == ncols);
         if is_regular_table {
-            return None;
+            return Ok(None);
         }
 
         let max_ncols = self.rows.iter().map(|row| row.cells.len()).max().unwrap();
@@ -150,7 +153,7 @@ impl Table {
             rowspan: 1,
             colspan: 1,
             attrs: HashMap::new(),
-            value: RichText::empty(),
+            value: Py::new(py, RichText::empty())?,
             html: "".to_owned(),
         };
 
@@ -168,19 +171,16 @@ impl Table {
             rows.push(row);
         }
 
-        Some(Table {
+        Ok(Some(Table {
             id: self.id.clone(),
             url: self.url.clone(),
             caption: self.caption.clone(),
             attrs: self.attrs.clone(),
             context: self.context.clone(),
             rows: rows,
-        })
+        }))
     }
-}
 
-#[pymethods]
-impl Table {
     fn to_bytes(&self) -> Result<Vec<u8>> {
         let out = postcard::to_allocvec(self)?;
         Ok(out)

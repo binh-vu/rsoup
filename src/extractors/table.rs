@@ -1,3 +1,6 @@
+use super::context_v1::ContextExtractor;
+use super::url_converter::URLConverter;
+use super::Document;
 use crate::error::TableExtractorError;
 use crate::misc::convert_attrs;
 use crate::table::{Row, Table};
@@ -11,9 +14,6 @@ use hashbrown::HashSet;
 use pyo3::prelude::*;
 use scraper::{ElementRef, Node, Selector};
 use url::Url;
-use super::url_converter::URLConverter;
-use super::context_v1::ContextExtractor;
-use super::Document;
 
 #[pyclass(module = "rsoup.rsoup")]
 pub struct TableExtractor {
@@ -64,6 +64,7 @@ impl TableExtractor {
     #[args(auto_span = "true", auto_pad = "true", extract_context = "true")]
     fn extract(
         &self,
+        py: Python,
         url: String,
         doc: String,
         auto_span: bool,
@@ -71,6 +72,7 @@ impl TableExtractor {
         extract_context: bool,
     ) -> PyResult<Vec<Table>> {
         Ok(self.extract_tables(
+            py,
             &Document::new(url, doc),
             auto_span,
             auto_pad,
@@ -100,6 +102,7 @@ impl TableExtractor {
     /// Extract tables from HTML.
     pub fn extract_tables<'t>(
         &self,
+        py: Python,
         doc: &'t Document,
         auto_span: bool,
         auto_pad: bool,
@@ -115,7 +118,7 @@ impl TableExtractor {
             if el.select(&selector).next().is_some() {
                 continue;
             }
-            tables.push(self.extract_non_nested_table(el)?);
+            tables.push(self.extract_non_nested_table(py, el)?);
             table_els.push(el);
         }
 
@@ -141,8 +144,8 @@ impl TableExtractor {
         if auto_pad {
             tables = tables
                 .into_iter()
-                .map(|tbl| tbl.pad().unwrap_or(tbl))
-                .collect::<Vec<_>>()
+                .map(|tbl| Ok(tbl.pad(py)?.unwrap_or(tbl)))
+                .collect::<PyResult<Vec<_>>>()?
         }
 
         if extract_context {
@@ -176,7 +179,7 @@ impl TableExtractor {
         for table in &mut tables {
             for row in &mut table.rows {
                 for cell in &mut row.cells {
-                    url_converter.normalize_rich_text(&mut cell.value);
+                    url_converter.normalize_rich_text(&mut *cell.value.borrow_mut(py));
                 }
             }
 
@@ -198,7 +201,7 @@ impl TableExtractor {
     /// # Arguments
     ///
     /// * `table_el` - The table element
-    pub fn extract_non_nested_table(&self, table_el: ElementRef) -> Result<Table> {
+    pub fn extract_non_nested_table(&self, py: Python, table_el: ElementRef) -> Result<Table> {
         let mut caption: String = "".to_owned();
         let mut rows = vec![];
 
@@ -233,7 +236,7 @@ impl TableExtractor {
                                 debug_assert!(cell_el.name() == "style");
                                 continue;
                             }
-                            cells.push(self.extract_cell(cell_ref)?);
+                            cells.push(self.extract_cell(py, cell_ref)?);
                         }
                     }
 
@@ -260,7 +263,7 @@ impl TableExtractor {
     /// # Arguments
     ///
     /// * `cell` - td/th tag
-    fn extract_cell(&self, cell: NodeRef<Node>) -> Result<Cell> {
+    fn extract_cell(&self, py: Python, cell: NodeRef<Node>) -> Result<Cell> {
         let el = cell.value().as_element().expect("Expected element");
         debug_assert!(el.name() == "td" || el.name() == "th");
 
@@ -289,13 +292,16 @@ impl TableExtractor {
             html: ElementRef::wrap(cell).unwrap().html(),
             rowspan,
             colspan,
-            value: get_rich_text(
-                &cell,
-                &self.ignored_tags,
-                self.only_keep_inline_tags,
-                &self.discard_tags,
-                &self.keep_tags,
-            ),
+            value: Py::new(
+                py,
+                get_rich_text(
+                    &cell,
+                    &self.ignored_tags,
+                    self.only_keep_inline_tags,
+                    &self.discard_tags,
+                    &self.keep_tags,
+                ),
+            )?,
             attrs: convert_attrs(&el.attrs),
         })
     }
