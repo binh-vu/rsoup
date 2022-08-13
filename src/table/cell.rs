@@ -1,9 +1,7 @@
-use crate::text::{RichText, RichTextElement};
+use crate::text::RichText;
 use hashbrown::HashMap;
 use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
-
-use super::Table;
 
 #[pyclass(module = "rsoup.rsoup")]
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -33,40 +31,8 @@ impl Cell {
         o.set_item("rowspan", self.rowspan)?;
         o.set_item("colspan", self.colspan)?;
         o.set_item("attrs", &self.attrs)?;
-        o.set_item("value", self.value.as_ref(py).borrow().to_dict(py)?)?;
+        o.set_item("value", self.value.borrow(py).to_dict(py)?)?;
         o.set_item("html", &self.html)?;
         Ok(o.into_py(py))
     }
 }
-
-// #[pyclass(module = "rsoup.rsoup", unsendable)]
-// pub struct CellTRef {
-//     table: PyCell<Table>,
-//     row_index: usize,
-//     col_index: usize,
-// }
-
-// #[pymethods]
-// impl CellTRef {
-//     // fn preorder_iter_element_preorder(&self) -> PyResult<Vec<CellTRef>> {
-//     //     let mut result = Vec::new();
-//     //     result.push(self.clone());
-//     //     Ok(result)
-//     // }
-
-//     // fn get_element(&self, py: Python, id: usize) -> PyResult<RichTextElement> {
-//     //     Ok(
-//     //         self.table.borrow().rows[self.row_index].cells[self.col_index]
-//     //             .value
-//     //             .element
-//     //             .get_node(id),
-//     //     )
-//     // }
-
-//     fn set_element(&self, id: usize, element: RichTextElement) {
-//         self.table.borrow_mut().rows[self.row_index].cells[self.col_index]
-//             .value
-//             .element
-//             .update_node(id, element);
-//     }
-// }

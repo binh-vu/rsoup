@@ -1,6 +1,6 @@
 use crate::{
     context::ContentHierarchy,
-    error::TableExtractorError,
+    error::RSoupError,
     misc::{
         recursive_iter::{ExitingSeqState, RecurInvocationBuilder},
         InvState, InvTree,
@@ -558,11 +558,13 @@ impl ContextExtractor {
         let mut tree_after = SimpleTree::empty();
 
         while let Some(parent_ref) = el.parent() {
-            let parent = parent_ref.value().as_element().ok_or(
-                TableExtractorError::InvalidHTMLStructureError(
-                    "Parent of an element must be an element",
-                ),
-            )?;
+            let parent =
+                parent_ref
+                    .value()
+                    .as_element()
+                    .ok_or(RSoupError::InvalidHTMLStructureError(
+                        "Parent of an element must be an element",
+                    ))?;
             if parent.name() == "html" {
                 break;
             }
@@ -585,7 +587,7 @@ impl ContextExtractor {
 
         let root = element
             .parent()
-            .ok_or(TableExtractorError::InvalidHTMLStructureError(
+            .ok_or(RSoupError::InvalidHTMLStructureError(
                 "The element we want to locate cannot be a root node in HTML doc",
             ))?;
         let root_id = tree_after.add_node(root);

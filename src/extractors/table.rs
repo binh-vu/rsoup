@@ -1,7 +1,7 @@
 use super::context_v1::ContextExtractor;
 use super::url_converter::URLConverter;
 use super::Document;
-use crate::error::TableExtractorError;
+use crate::error::{InvalidCellSpanPyError, OverlapSpanPyError, RSoupError};
 use crate::misc::convert_attrs;
 use crate::table::{Row, Table};
 use crate::{
@@ -127,14 +127,18 @@ impl TableExtractor {
             let mut new_table_els = Vec::with_capacity(tables.len());
 
             for (i, tbl) in tables.iter().enumerate() {
-                match tbl.span() {
+                match tbl.span(py) {
                     Ok(new_tbl) => {
                         new_tables.push(new_tbl);
                         new_table_els.push(table_els[i]);
                     }
-                    Err(TableExtractorError::OverlapSpanError(_)) => {}
-                    Err(TableExtractorError::InvalidCellSpanError(_)) => {}
-                    Err(x) => bail!(x),
+                    Err(err) => {
+                        if !err.is_instance_of::<OverlapSpanPyError>(py)
+                            && !err.is_instance_of::<InvalidCellSpanPyError>(py)
+                        {
+                            bail!(err);
+                        }
+                    }
                 }
             }
             tables = new_tables;
@@ -150,7 +154,12 @@ impl TableExtractor {
 
         if extract_context {
             for i in 0..tables.len() {
-                tables[i].context = self.context_extractor.extract_context(*table_els[i])?;
+                tables[i].context = self
+                    .context_extractor
+                    .extract_context(*table_els[i])?
+                    .into_iter()
+                    .map(|x| Py::new(py, x))
+                    .collect::<PyResult<Vec<_>>>()?;
             }
         }
 
@@ -178,16 +187,17 @@ impl TableExtractor {
         let url_converter = URLConverter::new(doc.url.to_owned())?;
         for table in &mut tables {
             for row in &mut table.rows {
-                for cell in &mut row.cells {
-                    url_converter.normalize_rich_text(&mut *cell.value.borrow_mut(py));
+                for cell in &mut (row.borrow_mut(py)).cells {
+                    url_converter
+                        .normalize_rich_text(&mut *cell.borrow_mut(py).value.borrow_mut(py));
                 }
             }
 
             for content in &mut table.context {
-                for line in &mut content.content_before {
+                for line in &mut content.borrow_mut(py).content_before {
                     url_converter.normalize_rich_text(line);
                 }
-                for line in &mut content.content_after {
+                for line in &mut content.borrow_mut(py).content_after {
                     url_converter.normalize_rich_text(line);
                 }
             }
@@ -236,14 +246,17 @@ impl TableExtractor {
                                 debug_assert!(cell_el.name() == "style");
                                 continue;
                             }
-                            cells.push(self.extract_cell(py, cell_ref)?);
+                            cells.push(Py::new(py, self.extract_cell(py, cell_ref)?)?);
                         }
                     }
 
-                    rows.push(Row {
-                        cells,
-                        attrs: convert_attrs(&row_el.attrs),
-                    });
+                    rows.push(Py::new(
+                        py,
+                        Row {
+                            cells,
+                            attrs: convert_attrs(&row_el.attrs),
+                        },
+                    )?);
                 }
             }
         }
@@ -277,14 +290,14 @@ impl TableExtractor {
             // convert
             raw_colspan
                 .parse::<u16>()
-                .map_err(|_| TableExtractorError::InvalidCellSpanError(raw_colspan.to_owned()))?
+                .map_err(|_| RSoupError::InvalidCellSpanError(raw_colspan.to_owned()))?
         };
         let rowspan = if raw_rowspan == "" {
             1
         } else {
             raw_rowspan
                 .parse::<u16>()
-                .map_err(|_| TableExtractorError::InvalidCellSpanError(raw_rowspan.to_owned()))?
+                .map_err(|_| RSoupError::InvalidCellSpanError(raw_rowspan.to_owned()))?
         };
 
         Ok(Cell {

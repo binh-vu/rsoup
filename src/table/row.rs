@@ -8,7 +8,7 @@ use super::Cell;
 #[pyclass(module = "rsoup.rsoup")]
 pub struct Row {
     #[pyo3(get)]
-    pub cells: Vec<Cell>,
+    pub cells: Vec<Py<Cell>>,
     #[pyo3(get)]
     pub attrs: HashMap<String, String>,
 }
@@ -24,7 +24,7 @@ impl Row {
             &self
                 .cells
                 .iter()
-                .map(|c| c.to_dict(py))
+                .map(|c| c.borrow(py).to_dict(py))
                 .collect::<PyResult<Vec<_>>>()?,
         )?;
         Ok(o.into_py(py))
