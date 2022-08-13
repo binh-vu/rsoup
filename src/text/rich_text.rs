@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 pub const PSEUDO_TAG: &str = "";
 
-#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[pyclass(module = "rsoup.rsoup")]
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RichText {
     #[pyo3(get)]
     pub text: String,
@@ -20,8 +20,8 @@ pub struct RichText {
 }
 
 /// Represent an html element.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[pyclass(module = "rsoup.rsoup")]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RichTextElement {
     #[pyo3(get)]
     pub tag: String,

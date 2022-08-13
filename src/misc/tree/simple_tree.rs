@@ -63,6 +63,11 @@ impl<N> SimpleTree<N> {
         uid
     }
 
+    #[inline]
+    pub fn update_node(&mut self, id: usize, node: N) {
+        self.nodes[id] = node;
+    }
+
     pub fn add_child(&mut self, parent_id: usize, child_id: usize) {
         if child_id == self.root {
             self.root = parent_id;

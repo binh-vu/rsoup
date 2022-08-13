@@ -11,7 +11,7 @@ use hashbrown::HashSet;
 use pyo3::prelude::*;
 use scraper::{ElementRef, Node, Selector};
 use url::Url;
-
+use super::url_converter::URLConverter;
 use super::context_v1::ContextExtractor;
 use super::Document;
 
@@ -151,6 +151,7 @@ impl TableExtractor {
             }
         }
 
+        // update table id
         let mut url = Url::parse(&doc.url)?;
         let mut query = match url.query() {
             None => "table_no=".as_bytes().to_vec(),
@@ -168,6 +169,25 @@ impl TableExtractor {
             tbl.id = url.as_str().to_owned();
             query.truncate(query_len);
             tbl.url = doc.url.to_owned();
+        }
+
+        // convert relative urls to absolute urls
+        let url_converter = URLConverter::new(doc.url.to_owned())?;
+        for table in &mut tables {
+            for row in &mut table.rows {
+                for cell in &mut row.cells {
+                    url_converter.normalize_rich_text(&mut cell.value);
+                }
+            }
+
+            for content in &mut table.context {
+                for line in &mut content.content_before {
+                    url_converter.normalize_rich_text(line);
+                }
+                for line in &mut content.content_after {
+                    url_converter.normalize_rich_text(line);
+                }
+            }
         }
 
         Ok(tables)

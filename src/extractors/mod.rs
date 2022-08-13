@@ -2,6 +2,7 @@ use scraper::Html;
 
 pub mod context_v1;
 pub mod table;
+pub mod url_converter;
 
 use pyo3::prelude::*;
 
