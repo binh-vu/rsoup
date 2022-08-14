@@ -2,12 +2,10 @@ mod get_rich_text;
 pub mod get_text_v1;
 pub mod get_text_v2;
 pub mod line;
-pub mod rich_text;
 use phf::{phf_set, Set};
 
 pub use self::get_rich_text::{get_rich_text, get_rich_text_from_seq};
 pub use self::get_text_v2::get_text;
-pub use self::rich_text::{RichText, RichTextElement};
 
 /// list of inline elements that will be rendered in same line except <br> tags
 /// https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elements

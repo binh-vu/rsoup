@@ -6,13 +6,16 @@ use std::collections::VecDeque;
 /// In this receipe, recursive calls form a tree (named invocation tree), where each node is a direct call to the recursive function
 /// (children of the node will be recursive calls from the direct call).
 ///
-/// 1. stack = Stack::new(<roots of the tree>);
-/// 2. while let Some(call) = stack.next():     # pop the current node from stack
-/// 3.    if call.is_entering():                # this is the first time we enter this node.
-/// 4.        <handle entering node>
-/// 5.        stack.add_next_states(<get children of the node>);
-/// 6.    else:                                 # this is when we exit this node
-/// 7.        <handle exiting node>
+/// ```ignore
+/// 1. tree = InvTree::new(<roots of the tree>);
+/// 2. while let Some(inv) = tree.next():     # pop the current node from stack
+/// 3.     match inv.state:
+/// 4.         InvState::Entering(entering_state):
+/// 5.             # do something with the data and add next calls if needed
+/// 6.             tree.add_recur_invocations(&inv, exiting_state, return_ids, next_ids);
+/// 7.         InvState::Exiting(exiting_state):
+/// 8.             # handling exiting state
+/// ```
 pub struct InvTree<U, V>
 where
     U: std::fmt::Debug,
@@ -43,7 +46,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ExitingSeqState<N>
+pub struct InvExitingSeqState<N>
 where
     N: std::fmt::Debug,
 {
@@ -152,12 +155,12 @@ where
     }
 }
 
-impl<U> ExitingSeqState<U>
+impl<U> InvExitingSeqState<U>
 where
     U: std::fmt::Debug,
 {
     pub fn new() -> Self {
-        ExitingSeqState {
+        InvExitingSeqState {
             seq: VecDeque::new(),
             n_consumed: 0,
         }

@@ -1,13 +1,8 @@
 use anyhow::Result;
-use hashbrown::{HashMap, HashSet};
+use pyo3::Python;
+use rsoup::extractors::context_v1::ContextExtractor;
 use scraper::{Html, Node, Selector};
 use std::{fs, path::Path};
-use table_extractor::context::ContentHierarchy;
-use table_extractor::extractors::context_v1::ContextExtractor;
-use table_extractor::{
-    misc::SimpleTree,
-    text::{get_rich_text, get_text, RichText, RichTextElement},
-};
 
 fn get_doc(filename: &str) -> Result<Html> {
     let html_file = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -107,10 +102,11 @@ fn test_context_extractor() -> Result<()> {
 
     let elements = doc.select(&selector).collect::<Vec<_>>();
     assert_eq!(elements.len(), 1);
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+    let context = extractor.extract_context(py, *elements[0])?;
 
-    let context = extractor.extract_context(*elements[0])?;
-
-    println!("{:#?}", context);
+    // println!("{:#?}", context);
     assert_eq!(
         format!("{:#?}", context),
         r#"

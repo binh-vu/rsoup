@@ -1,16 +1,16 @@
 use crate::{
-    context::ContentHierarchy,
-    error::TableExtractorError,
+    error::RSoupError,
+    extractors::text::{get_rich_text, get_rich_text_from_seq, BLOCK_ELEMENTS},
     misc::{
-        recursive_iter::{ExitingSeqState, RecurInvocationBuilder},
-        InvState, InvTree,
+        recursive_iter::{InvExitingSeqState, InvState, InvTree, RecurInvocationBuilder},
+        tree::simple_tree::SimpleTree,
     },
-    text::{
-        get_rich_text, get_rich_text_from_seq, rich_text::PSEUDO_TAG, RichText, BLOCK_ELEMENTS,
+    models::{
+        content_hierarchy::ContentHierarchy,
+        rich_text::{RichText, PSEUDO_TAG},
     },
 };
 
-use crate::misc::SimpleTree;
 use anyhow::Result;
 use ego_tree::NodeRef;
 use hashbrown::HashSet;
@@ -123,6 +123,7 @@ impl ContextExtractor {
     /// is often used as block element so this extractor put it in another line.
     pub fn extract_context<'s>(
         &self,
+        py: Python,
         table_el: NodeRef<'s, Node>,
     ) -> Result<Vec<ContentHierarchy>> {
         let (tree_before, tree_after) = self.locate_content_before_and_after(table_el)?;
@@ -135,13 +136,17 @@ impl ContextExtractor {
         // self.flatten_tree(&tree_before, &mut context_before);
         // self.flatten_tree(&tree_after, &mut context_after);
 
-        let mut context = vec![ContentHierarchy::new(0, RichText::empty())];
+        let mut context = vec![ContentHierarchy::new(0, Py::new(py, RichText::empty())?)];
         for c in context_before {
             if self.header_elements.contains(c.get_tag()) {
                 let header = c.get_tag()[1..].parse::<usize>().unwrap();
-                context.push(ContentHierarchy::new(header, c));
+                context.push(ContentHierarchy::new(header, Py::new(py, c)?));
             } else {
-                context.last_mut().unwrap().content_before.push(c);
+                context
+                    .last_mut()
+                    .unwrap()
+                    .content_before
+                    .push(Py::new(py, c)?);
                 continue;
             }
         }
@@ -158,11 +163,12 @@ impl ContextExtractor {
         }
         rev_context.reverse();
         context = rev_context;
-        context
-            .last_mut()
-            .unwrap()
-            .content_after
-            .extend(context_after.into_iter().map(|c| c));
+        context.last_mut().unwrap().content_after.extend(
+            context_after
+                .into_iter()
+                .map(|c| Py::new(py, c))
+                .collect::<PyResult<Vec<_>>>()?,
+        );
 
         Ok(context)
     }
@@ -192,7 +198,7 @@ impl ContextExtractor {
                         }
                         inv_tree.add_recur_invocations(
                             &inv,
-                            ExitingSeqState::new(),
+                            InvExitingSeqState::new(),
                             next_invs.return_ids,
                             next_invs.invocations,
                         );
@@ -200,7 +206,7 @@ impl ContextExtractor {
                     }
 
                     // block element, have to check its children
-                    let mut exiting_state = ExitingSeqState::new();
+                    let mut exiting_state = InvExitingSeqState::new();
                     let mut next_invs = RecurInvocationBuilder::new();
 
                     for child_id in node_children {
@@ -307,7 +313,7 @@ impl ContextExtractor {
                                 continue;
                             }
 
-                            let mut exiting_state = ExitingSeqState::new();
+                            let mut exiting_state = InvExitingSeqState::new();
                             let mut next_invs = RecurInvocationBuilder::new();
 
                             for child_ref in node_ref.children() {
@@ -558,11 +564,13 @@ impl ContextExtractor {
         let mut tree_after = SimpleTree::empty();
 
         while let Some(parent_ref) = el.parent() {
-            let parent = parent_ref.value().as_element().ok_or(
-                TableExtractorError::InvalidHTMLStructureError(
-                    "Parent of an element must be an element",
-                ),
-            )?;
+            let parent =
+                parent_ref
+                    .value()
+                    .as_element()
+                    .ok_or(RSoupError::InvalidHTMLStructureError(
+                        "Parent of an element must be an element",
+                    ))?;
             if parent.name() == "html" {
                 break;
             }
@@ -585,7 +593,7 @@ impl ContextExtractor {
 
         let root = element
             .parent()
-            .ok_or(TableExtractorError::InvalidHTMLStructureError(
+            .ok_or(RSoupError::InvalidHTMLStructureError(
                 "The element we want to locate cannot be a root node in HTML doc",
             ))?;
         let root_id = tree_after.add_node(root);

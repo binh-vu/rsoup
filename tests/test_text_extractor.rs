@@ -1,11 +1,12 @@
 use anyhow::Result;
 use hashbrown::{HashMap, HashSet};
+use rsoup::{
+    extractors::text::{get_rich_text, get_text},
+    misc::tree::simple_tree::SimpleTree,
+    models::rich_text::{RichText, RichTextElement},
+};
 use scraper::{Html, Selector};
 use std::{fs, path::Path};
-use table_extractor::{
-    misc::SimpleTree,
-    text::{get_rich_text, get_text, RichText, RichTextElement},
-};
 
 pub fn get_doc(filename: &str) -> Result<Html> {
     let html_file = Path::new(env!("CARGO_MANIFEST_DIR"))

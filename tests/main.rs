@@ -1,12 +1,8 @@
-use anyhow::Result;
-use scraper::Html;
-use std::{fs, path::Path};
+#[cfg(test)]
+mod test_text_extractor;
 
 #[cfg(test)]
-mod test_text;
-
-#[cfg(test)]
-mod test_extractor;
+mod test_context_extractor;
 
 // pub fn get_doc(filename: &str) -> Result<Html> {
 //     let html_file = Path::new(env!("CARGO_MANIFEST_DIR"))

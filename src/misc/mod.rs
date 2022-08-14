@@ -1,12 +1,10 @@
+pub mod range_iter;
 pub mod recursive_iter;
 pub mod tree;
+pub mod url_converter;
 
 use hashbrown::HashMap;
 use scraper::node::Attributes;
-
-pub use self::recursive_iter::{InvNode, InvState, InvTree};
-pub use self::tree::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
-pub use self::tree::simple_tree::SimpleTree;
 
 pub fn convert_attrs(attrs: &Attributes) -> HashMap<String, String> {
     attrs

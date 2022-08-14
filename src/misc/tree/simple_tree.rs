@@ -1,4 +1,4 @@
-use super::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
+use crate::misc::tree::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
 use serde::{Deserialize, Serialize};
 
 /// A simple vector-based tree. Nodes are ordered based on their insertion order.
@@ -61,6 +61,11 @@ impl<N> SimpleTree<N> {
         self.nodes.push(node);
         self.node2children.push(Vec::new());
         uid
+    }
+
+    #[inline]
+    pub fn update_node(&mut self, id: usize, node: N) {
+        self.nodes[id] = node;
     }
 
     pub fn add_child(&mut self, parent_id: usize, child_id: usize) {

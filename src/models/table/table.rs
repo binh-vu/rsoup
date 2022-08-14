@@ -1,4 +1,3 @@
-use crate::{context::ContentHierarchy, error::TableExtractorError, text::RichText};
 use anyhow::Result;
 use hashbrown::HashMap;
 use pyo3::{
@@ -7,6 +6,9 @@ use pyo3::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
+
+use super::{Cell, Row};
+use crate::models::{content_hierarchy::ContentHierarchy, rich_text::RichText};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[pyclass(module = "rsoup.rsoup")]
@@ -20,41 +22,15 @@ pub struct Table {
     #[pyo3(get)]
     pub attrs: HashMap<String, String>,
     #[pyo3(get)]
-    pub context: Vec<ContentHierarchy>,
+    pub context: Vec<Py<ContentHierarchy>>,
     #[pyo3(get)]
-    pub rows: Vec<Row>,
+    pub rows: Vec<Py<Row>>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[pyclass(module = "rsoup.rsoup")]
-pub struct Row {
-    #[pyo3(get)]
-    pub cells: Vec<Cell>,
-    #[pyo3(get)]
-    pub attrs: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[pyclass(module = "rsoup.rsoup")]
-pub struct Cell {
-    #[pyo3(get, set)]
-    pub is_header: bool,
-    #[pyo3(get, set)]
-    pub rowspan: u16,
-    #[pyo3(get, set)]
-    pub colspan: u16,
-    #[pyo3(get)]
-    pub attrs: HashMap<String, String>,
-    #[pyo3(get, set)]
-    pub value: RichText,
-    // raw html of the cell
-    #[pyo3(get)]
-    pub html: String,
-}
-
+#[pymethods]
 impl Table {
     /// Span the table by copying values to merged field
-    pub fn span(&self) -> Result<Table, TableExtractorError> {
+    pub fn span(&self, py: Python) -> PyResult<Table> {
         if self.rows.len() == 0 {
             return Ok(self.clone());
         }
@@ -70,9 +46,11 @@ impl Table {
         // so we may have to iterate several times
 
         let mut cols = vec![0; self.rows.len()];
-        for (i, row) in self.rows.iter().enumerate() {
+        for (i, py_row) in self.rows.iter().enumerate() {
+            let row = py_row.borrow(py);
             cols[i] += row.cells.len();
-            for cell in &row.cells {
+            for py_cell in &row.cells {
+                let cell = py_cell.borrow(py);
                 if cell.rowspan > 1 {
                     for j in 1..cell.rowspan {
                         if i + (j as usize) < cols.len() {
@@ -89,29 +67,32 @@ impl Table {
         // so I decide to not handle that. Hope that we don't have many tables like that.
         // >>> finish find the max #cols
 
-        for row in &self.rows {
+        for py_row in &self.rows {
+            let row = py_row.borrow(py);
             let mut new_row = Vec::with_capacity(row.cells.len());
             let mut pj = 0;
 
             for (cell_index, ocell) in row.cells.iter().enumerate() {
-                let mut cell = ocell.clone();
+                let mut cell = ocell.borrow(py).clone();
+                let original_colspan = cell.colspan;
+                let original_rowspan = cell.rowspan;
                 cell.colspan = 1;
                 cell.rowspan = 1;
 
                 // adding cell from the top
                 while pending_ops.contains_key(&(pi, pj)) {
-                    new_row.push(pending_ops.remove(&(pi, pj)).unwrap());
+                    new_row.push(Py::new(py, pending_ops.remove(&(pi, pj)).unwrap())?);
                     pj += 1;
                 }
 
                 // now add cell and expand the column
-                for _ in 0..ocell.colspan {
+                for _ in 0..original_colspan {
                     if pending_ops.contains_key(&(pi, pj)) {
                         // exception, overlapping between colspan and rowspan
-                        return Err(TableExtractorError::OverlapSpanError("".to_owned()).into());
+                        return Err(crate::error::OverlapSpanPyError::new_err("".to_owned()).into());
                     }
-                    new_row.push(cell.clone());
-                    for ioffset in 1..ocell.rowspan {
+                    new_row.push(Py::new(py, cell.clone())?);
+                    for ioffset in 1..original_rowspan {
                         pending_ops.insert((pi + ioffset as i32, pj), cell.clone());
                     }
                     pj += 1;
@@ -120,9 +101,10 @@ impl Table {
                         // our algorithm cannot handle the case where people are bullying the colspan system, and only can handle the case
                         // where the span that goes beyond the maximum number of columns is in the last column.
                         if cell_index != row.cells.len() - 1 {
-                            return Err(
-                                TableExtractorError::InvalidCellSpanError("".to_owned()).into()
-                            );
+                            return Err(crate::error::InvalidCellSpanPyError::new_err(
+                                "".to_owned(),
+                            )
+                            .into());
                         } else {
                             break;
                         }
@@ -132,14 +114,17 @@ impl Table {
 
             // add more cells from the top since we reach the end
             while pending_ops.contains_key(&(pj, pj)) && pj < max_ncols {
-                new_row.push(pending_ops.remove(&(pj, pj)).unwrap());
+                new_row.push(Py::new(py, pending_ops.remove(&(pj, pj)).unwrap())?);
                 pj += 1;
             }
 
-            data.push(Row {
-                cells: new_row,
-                attrs: row.attrs.clone(),
-            });
+            data.push(Py::new(
+                py,
+                Row {
+                    cells: new_row,
+                    attrs: row.attrs.clone(),
+                },
+            )?);
             pi += 1;
         }
 
@@ -158,54 +143,78 @@ impl Table {
     /// Pad an irregular table (missing cells) to make it become a regular table
     ///
     /// This function only return new table when it's padded, otherwise, None.
-    pub fn pad(&self) -> Option<Table> {
+    pub fn pad(&self, py: Python) -> PyResult<Option<Table>> {
         if self.rows.len() == 0 {
-            return None;
+            return Ok(None);
         }
 
-        let ncols = self.rows[0].cells.len();
-        let is_regular_table = self.rows.iter().all(|row| row.cells.len() == ncols);
+        let borrowed_rows = self
+            .rows
+            .iter()
+            .map(|py_row| py_row.borrow(py))
+            .collect::<Vec<_>>();
+
+        let ncols = borrowed_rows[0].cells.len();
+        let is_regular_table = borrowed_rows.iter().all(|row| row.cells.len() == ncols);
         if is_regular_table {
-            return None;
+            return Ok(None);
         }
 
-        let max_ncols = self.rows.iter().map(|row| row.cells.len()).max().unwrap();
+        let max_ncols = borrowed_rows
+            .iter()
+            .map(|row| row.cells.len())
+            .max()
+            .unwrap();
         let default_cell = Cell {
             is_header: false,
             rowspan: 1,
             colspan: 1,
             attrs: HashMap::new(),
-            value: RichText::empty(),
-            html: "".to_owned(),
+            value: Py::new(py, RichText::empty())?,
         };
 
         let mut rows = Vec::with_capacity(self.rows.len());
-        for r in &self.rows {
+        for r in borrowed_rows {
             let mut row = r.clone();
 
             let mut newcell = default_cell.clone();
             // heuristic to match header from the previous cell of the same row
-            newcell.is_header = row.cells.last().map_or(false, |cell| cell.is_header);
+            newcell.is_header = row
+                .cells
+                .last()
+                .map_or(false, |cell| cell.borrow(py).is_header);
 
             while row.cells.len() < max_ncols {
-                row.cells.push(newcell.clone());
+                row.cells.push(Py::new(py, newcell.clone())?);
             }
-            rows.push(row);
+            rows.push(Py::new(py, row)?);
         }
 
-        Some(Table {
+        Ok(Some(Table {
             id: self.id.clone(),
             url: self.url.clone(),
             caption: self.caption.clone(),
             attrs: self.attrs.clone(),
             context: self.context.clone(),
             rows: rows,
-        })
+        }))
     }
-}
 
-#[pymethods]
-impl Table {
+    pub fn iter_cells(slf: Py<Table>, py: Python) -> super::cell_iter::CellTIter {
+        super::cell_iter::CellTIter {
+            table: slf.clone_ref(py),
+            row_index: 0,
+            cell_index: 0,
+        }
+    }
+
+    pub fn iter_rows(slf: Py<Table>, py: Python) -> super::row_iter::RowIter {
+        super::row_iter::RowIter {
+            table: slf.clone_ref(py),
+            row_index: 0,
+        }
+    }
+
     fn to_bytes(&self) -> Result<Vec<u8>> {
         let out = postcard::to_allocvec(self)?;
         Ok(out)
@@ -240,7 +249,7 @@ impl Table {
             &self
                 .context
                 .iter()
-                .map(|c| c.to_dict(py))
+                .map(|c| c.borrow(py).to_dict(py))
                 .collect::<PyResult<Vec<_>>>()?,
         )?;
         o.set_item(
@@ -248,43 +257,10 @@ impl Table {
             &self
                 .rows
                 .iter()
-                .map(|r| r.to_dict(py))
+                .map(|r| r.borrow(py).to_dict(py))
                 .collect::<PyResult<Vec<_>>>()?,
         )?;
 
-        Ok(o.into_py(py))
-    }
-}
-
-#[pymethods]
-impl Row {
-    fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let o = PyDict::new(py);
-
-        o.set_item("attrs", &self.attrs)?;
-        o.set_item(
-            "cells",
-            &self
-                .cells
-                .iter()
-                .map(|c| c.to_dict(py))
-                .collect::<PyResult<Vec<_>>>()?,
-        )?;
-        Ok(o.into_py(py))
-    }
-}
-
-#[pymethods]
-impl Cell {
-    fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let o = PyDict::new(py);
-
-        o.set_item("is_header", &self.is_header)?;
-        o.set_item("rowspan", self.rowspan)?;
-        o.set_item("colspan", self.colspan)?;
-        o.set_item("attrs", &self.attrs)?;
-        o.set_item("value", self.value.to_dict(py)?)?;
-        o.set_item("html", &self.html)?;
         Ok(o.into_py(py))
     }
 }

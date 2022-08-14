@@ -1,9 +1,12 @@
 use pyo3::PyErr;
 use thiserror::Error;
 
+pyo3::create_exception!(rsoup, OverlapSpanPyError, pyo3::exceptions::PyException);
+pyo3::create_exception!(rsoup, InvalidCellSpanPyError, pyo3::exceptions::PyException);
+
 /// Represent possible errors returned by this library.
 #[derive(Error, Debug)]
-pub enum TableExtractorError {
+pub enum RSoupError {
     #[error("InvalidHTMLStructureError: {0}")]
     InvalidHTMLStructureError(&'static str),
 
@@ -22,9 +25,9 @@ pub enum TableExtractorError {
     PyErr(#[from] pyo3::PyErr),
 }
 
-pub fn into_pyerr<E: Into<TableExtractorError>>(err: E) -> PyErr {
+pub fn into_pyerr<E: Into<RSoupError>>(err: E) -> PyErr {
     let hderr = err.into();
-    if let TableExtractorError::PyErr(e) = hderr {
+    if let RSoupError::PyErr(e) = hderr {
         e
     } else {
         let anyerror: anyhow::Error = hderr.into();

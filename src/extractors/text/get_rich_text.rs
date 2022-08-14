@@ -2,13 +2,13 @@ use ego_tree::{NodeRef, Tree};
 use hashbrown::{HashMap, HashSet};
 use scraper::Node;
 
-use crate::misc::{convert_attrs, SimpleTree};
+use crate::misc::{convert_attrs, tree::simple_tree::SimpleTree};
 
 use super::{
     line::{Line, Paragraph},
-    rich_text::{RichText, RichTextElement, PSEUDO_TAG},
     BLOCK_ELEMENTS, INLINE_ELEMENTS,
 };
+use crate::models::rich_text::{RichText, RichTextElement, PSEUDO_TAG};
 
 /// Get text from an element as similar as possible to the rendered text.
 /// It also returns **descendants** of the element constituting the text.
