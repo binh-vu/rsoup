@@ -1,3 +1,3 @@
-# Table Extractor ![PyPI](https://img.shields.io/pypi/v/web-table-extractor)
+# RSoup ![PyPI](https://img.shields.io/pypi/v/rsoup)
 
-Extract HTML tables from webpages.
+A very fast library for web scraper that handles text correctly
