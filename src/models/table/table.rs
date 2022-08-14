@@ -208,6 +208,14 @@ impl Table {
         }
     }
 
+    pub fn enumerate_cells(slf: Py<Table>, py: Python) -> super::cell_iter::CellTEnumerator {
+        super::cell_iter::CellTEnumerator {
+            table: slf.clone_ref(py),
+            row_index: 0,
+            cell_index: 0,
+        }
+    }
+
     pub fn iter_rows(slf: Py<Table>, py: Python) -> super::row_iter::RowIter {
         super::row_iter::RowIter {
             table: slf.clone_ref(py),
