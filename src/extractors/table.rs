@@ -1,13 +1,10 @@
-use super::context_v1::ContextExtractor;
-use super::url_converter::URLConverter;
-use super::Document;
 use crate::error::{InvalidCellSpanPyError, OverlapSpanPyError, RSoupError};
+use crate::extractors::context_v1::ContextExtractor;
+use crate::extractors::text::{get_rich_text, get_text};
+use crate::extractors::Document;
 use crate::misc::convert_attrs;
-use crate::table::{Row, Table};
-use crate::{
-    table::Cell,
-    text::{get_rich_text, get_text},
-};
+use crate::misc::url_converter::URLConverter;
+use crate::models::table::{Cell, Row, Table};
 use anyhow::{bail, Result};
 use ego_tree::NodeRef;
 use hashbrown::HashSet;
@@ -113,6 +110,7 @@ impl TableExtractor {
         let selector = Selector::parse("table").unwrap();
         let mut tables = vec![];
         let mut table_els = vec![];
+        let mut table_nos = vec![];
 
         for el in tree.select(&selector) {
             if el.select(&selector).next().is_some() {
@@ -120,17 +118,20 @@ impl TableExtractor {
             }
             tables.push(self.extract_non_nested_table(py, el)?);
             table_els.push(el);
+            table_nos.push(table_nos.len());
         }
 
         if auto_span {
             let mut new_tables = Vec::with_capacity(tables.len());
             let mut new_table_els = Vec::with_capacity(tables.len());
+            let mut new_table_nos = Vec::with_capacity(tables.len());
 
             for (i, tbl) in tables.iter().enumerate() {
                 match tbl.span(py) {
                     Ok(new_tbl) => {
                         new_tables.push(new_tbl);
                         new_table_els.push(table_els[i]);
+                        new_table_nos.push(i);
                     }
                     Err(err) => {
                         if !err.is_instance_of::<OverlapSpanPyError>(py)
@@ -143,6 +144,7 @@ impl TableExtractor {
             }
             tables = new_tables;
             table_els = new_table_els;
+            table_nos = new_table_nos;
         }
 
         if auto_pad {
@@ -156,7 +158,7 @@ impl TableExtractor {
             for i in 0..tables.len() {
                 tables[i].context = self
                     .context_extractor
-                    .extract_context(*table_els[i])?
+                    .extract_context(py, *table_els[i])?
                     .into_iter()
                     .map(|x| Py::new(py, x))
                     .collect::<PyResult<Vec<_>>>()?;
@@ -176,7 +178,7 @@ impl TableExtractor {
         let query_len = query.len();
 
         for (i, tbl) in tables.iter_mut().enumerate() {
-            query.extend_from_slice(i.to_string().as_bytes());
+            query.extend_from_slice(table_nos[i].to_string().as_bytes());
             url.set_query(Some(std::str::from_utf8(&query)?));
             tbl.id = url.as_str().to_owned();
             query.truncate(query_len);
@@ -195,10 +197,10 @@ impl TableExtractor {
 
             for content in &mut table.context {
                 for line in &mut content.borrow_mut(py).content_before {
-                    url_converter.normalize_rich_text(line);
+                    url_converter.normalize_rich_text(&mut *line.borrow_mut(py));
                 }
                 for line in &mut content.borrow_mut(py).content_after {
-                    url_converter.normalize_rich_text(line);
+                    url_converter.normalize_rich_text(&mut *line.borrow_mut(py));
                 }
             }
         }
@@ -302,7 +304,6 @@ impl TableExtractor {
 
         Ok(Cell {
             is_header,
-            html: ElementRef::wrap(cell).unwrap().html(),
             rowspan,
             colspan,
             value: Py::new(

@@ -1,8 +1,9 @@
 use anyhow::Result;
 use hashbrown::{HashMap, HashSet};
 use rsoup::{
-    misc::SimpleTree,
-    text::{get_rich_text, get_text, RichText, RichTextElement},
+    extractors::text::{get_rich_text, get_text},
+    misc::tree::simple_tree::SimpleTree,
+    models::rich_text::{RichText, RichTextElement},
 };
 use scraper::{Html, Selector};
 use std::{fs, path::Path};

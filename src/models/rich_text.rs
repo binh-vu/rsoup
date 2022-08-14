@@ -1,9 +1,13 @@
 use hashbrown::HashMap;
+use pyo3::exceptions::PyKeyError;
 use std::fmt;
 
-use crate::misc::{ITree, SimpleTree};
 use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
+
+use crate::misc::range_iter::RangeIter;
+use crate::misc::tree::iterator::ITree;
+use crate::misc::tree::simple_tree::SimpleTree;
 
 pub const PSEUDO_TAG: &str = "";
 
@@ -88,7 +92,52 @@ impl RichText {
         }
         is_valid
     }
+}
 
+#[pymethods]
+impl RichText {
+    pub fn iter_element_id(&self) -> RangeIter {
+        RangeIter {
+            start: 0,
+            end: self.element.len(),
+        }
+    }
+
+    pub fn iter_element_id_preorder(
+        slf: Py<RichText>,
+        py: Python,
+    ) -> RichTextElementIdPreorderIter {
+        RichTextElementIdPreorderIter::new(slf.clone_ref(py))
+    }
+
+    pub fn get_element_tag_by_id(&self, id: usize) -> String {
+        self.element.get_node(id).tag.clone()
+    }
+
+    pub fn get_element_by_id(&self, id: usize) -> RichTextElement {
+        self.element.get_node(id).clone()
+    }
+
+    pub fn set_element_by_id(&mut self, id: usize, element: RichTextElement) {
+        self.element.update_node(id, element);
+    }
+
+    pub fn set_element_attr_by_id(&mut self, id: usize, attr: &str, value: &str) {
+        self.element
+            .get_node_mut(id)
+            .attrs
+            .insert(attr.to_owned(), value.to_owned());
+    }
+
+    pub fn get_element_attr_by_id(&self, id: usize, attr: &str) -> Option<String> {
+        self.element
+            .get_node(id)
+            .attrs
+            .get(attr)
+            .map(ToOwned::to_owned)
+    }
+
+    #[args("*", render_outer_element = "true", render_element_attrs = "false")]
     pub fn to_html(&self, render_outer_element: bool, render_element_attrs: bool) -> String {
         let mut tokens = Vec::<&str>::with_capacity(2 + self.element.len());
         // keep track of pending tags that need to be closed
@@ -181,10 +230,7 @@ impl RichText {
 
         tokens.join("")
     }
-}
 
-#[pymethods]
-impl RichText {
     pub fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
         let tree = PyDict::new(py);
 
@@ -208,8 +254,10 @@ impl RichText {
 
 #[pymethods]
 impl RichTextElement {
-    fn get_attr(&self, name: &str) -> PyResult<Option<&str>> {
-        Ok(self.attrs.get(name).map(|s| s.as_str()))
+    fn get_attr(&self, name: &str) -> PyResult<&String> {
+        self.attrs
+            .get(name)
+            .ok_or_else(|| PyKeyError::new_err(format!("{name} not found")))
     }
 
     fn has_attr(&self, name: &str) -> PyResult<bool> {
@@ -235,5 +283,59 @@ impl fmt::Display for RichText {
 impl fmt::Debug for RichText {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "`{}`", self.to_html(true, false))
+    }
+}
+
+#[pyclass(module = "rsoup.rsoup")]
+pub struct RichTextElementIdPreorderIter {
+    text: Py<RichText>,
+    stack: Vec<(usize, usize)>,
+    inited: bool,
+}
+
+impl RichTextElementIdPreorderIter {
+    pub fn new(text: Py<RichText>) -> Self {
+        RichTextElementIdPreorderIter {
+            text,
+            stack: Vec::new(),
+            inited: false,
+        }
+    }
+}
+
+#[pymethods]
+impl RichTextElementIdPreorderIter {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python) -> Option<usize> {
+        let text = self.text.borrow(py);
+        loop {
+            if self.stack.len() == 0 {
+                if self.inited {
+                    return None;
+                }
+                self.inited = true;
+                self.stack.push((text.element.get_root_id(), 0));
+                return Some(self.stack[self.stack.len() - 1].0);
+            }
+
+            // current element has been returned previously
+            // so we will try to return its child
+            let n1 = self.stack.len() - 1;
+            let (node, child_index) = self.stack[n1];
+            let node_children = text.element.get_child_ids(node);
+
+            if child_index < node_children.len() {
+                // add this child to stack
+                self.stack.push((node_children[child_index], 0));
+                self.stack[n1].1 += 1;
+                return Some(node_children[child_index]);
+            }
+
+            // no child to return, done at this level, so we move up
+            self.stack.pop();
+        }
     }
 }

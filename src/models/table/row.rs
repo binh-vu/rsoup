@@ -15,6 +15,13 @@ pub struct Row {
 
 #[pymethods]
 impl Row {
+    fn iter_cells(slf: Py<Row>, py: Python) -> super::cell_iter::CellRIter {
+        super::cell_iter::CellRIter {
+            row: slf.clone_ref(py),
+            cell_index: 0,
+        }
+    }
+
     pub(super) fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
         let o = PyDict::new(py);
 

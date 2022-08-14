@@ -1,9 +1,10 @@
 use anyhow::Result;
 use url::Url;
-use crate::text::RichText;
+
+use crate::models::rich_text::RichText;
 
 pub struct URLConverter {
-    url: Url
+    url: Url,
 }
 
 impl URLConverter {
@@ -23,7 +24,12 @@ impl URLConverter {
         if relative_url.starts_with("//") {
             Ok(format!("{}:{}", self.url.scheme(), relative_url))
         } else if relative_url.starts_with("/") {
-            Ok(format!("{}://{}{}", self.url.scheme(), self.url.host_str().unwrap(), relative_url))
+            Ok(format!(
+                "{}://{}{}",
+                self.url.scheme(),
+                self.url.host_str().unwrap(),
+                relative_url
+            ))
         } else if relative_url.starts_with(".") {
             Ok(self.url.join(relative_url)?.as_str().to_owned())
         } else {

@@ -1,11 +1,6 @@
 use anyhow::Result;
-use hashbrown::{HashMap, HashSet};
-use rsoup::context::ContentHierarchy;
+use pyo3::Python;
 use rsoup::extractors::context_v1::ContextExtractor;
-use rsoup::{
-    misc::SimpleTree,
-    text::{get_rich_text, get_text, RichText, RichTextElement},
-};
 use scraper::{Html, Node, Selector};
 use std::{fs, path::Path};
 
@@ -107,10 +102,11 @@ fn test_context_extractor() -> Result<()> {
 
     let elements = doc.select(&selector).collect::<Vec<_>>();
     assert_eq!(elements.len(), 1);
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+    let context = extractor.extract_context(py, *elements[0])?;
 
-    let context = extractor.extract_context(*elements[0])?;
-
-    println!("{:#?}", context);
+    // println!("{:#?}", context);
     assert_eq!(
         format!("{:#?}", context),
         r#"

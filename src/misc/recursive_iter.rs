@@ -46,7 +46,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ExitingSeqState<N>
+pub struct InvExitingSeqState<N>
 where
     N: std::fmt::Debug,
 {
@@ -155,12 +155,12 @@ where
     }
 }
 
-impl<U> ExitingSeqState<U>
+impl<U> InvExitingSeqState<U>
 where
     U: std::fmt::Debug,
 {
     pub fn new() -> Self {
-        ExitingSeqState {
+        InvExitingSeqState {
             seq: VecDeque::new(),
             n_consumed: 0,
         }

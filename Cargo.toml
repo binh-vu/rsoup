@@ -1,6 +1,6 @@
 [package]
 name = "rsoup"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -33,5 +33,6 @@ extension-module = ["pyo3/extension-module"]
 default = ["extension-module"]
 
 [[bench]]
-name = "context_recursive_extractor_benchmark"
+# name = "context_recursive_extractor_benchmark"
+name = "get_text"
 harness = false

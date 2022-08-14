@@ -1,4 +1,4 @@
-use super::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
+use crate::misc::tree::iterator::{ITree, IdPreorderTraversal, NodePreorderTraversal};
 use serde::{Deserialize, Serialize};
 
 /// A simple vector-based tree. Nodes are ordered based on their insertion order.

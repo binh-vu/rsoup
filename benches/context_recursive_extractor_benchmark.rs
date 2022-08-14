@@ -1,9 +1,10 @@
 use anyhow::Result;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use ego_tree::NodeRef;
+use rsoup::extractors::context_v1::ContextExtractor;
+use rsoup::models::rich_text::RichText;
 use scraper::{Html, Node, Selector};
 use std::{fs, path::Path};
-use table_extractor::{extractors::context_v1::ContextExtractor, text::RichText};
 
 fn get_doc(filename: &str) -> Html {
     let html_file = Path::new(env!("CARGO_MANIFEST_DIR"))
