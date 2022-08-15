@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Table Auto-Span Tests</title>
+    <style>
+      body > div {
+        border-bottom: 1px solid black;
+        padding-bottom: 8px;
+      }
+      table,
+      th,
+      td {
+        border: 1px solid black;
+      }
+      table {
+        border-collapse: collapse;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Span Before and After</h3>
+    <div id="span-default">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="3">Mountain name(s)</th>
+            <th rowspan="2" colspan="2">Height (rounded)</th>
+            <th rowspan="3">Range</th>
+            <th colspan="3">Ascents before 2004</th>
+            <th rowspan="3">Country</th>
+          </tr>
+          <tr>
+            <th rowspan="2">1st</th>
+            <th colspan="2">successful</th>
+          </tr>
+          <tr>
+            <th>m</th>
+            <th>ft</th>
+            <th>
+              <abbr title="yes">y</abbr>
+            </th>
+            <th>
+              <abbr title="no">n</abbr>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-sort-value="Everest, Mount">
+              <ul class="cslist">
+                <li>
+                  <a href="/wiki/Mount_Everest" title="Mount Everest"
+                    >Mount Everest</a
+                  >
+                </li>
+                <li>Sagarmatha</li>
+                <li>Chomolungma</li>
+              </ul>
+            </td>
+            <td style="text-align: right">8,848</td>
+            <td style="text-align: right">29,029</td>
+            <td>
+              <a href="/wiki/Mahalangur_Himal" title="Mahalangur Himal"
+                >Mahalangur</a
+              >
+              <a href="/wiki/Himalaya" class="mw-redirect" title="Himalaya"
+                >Himalaya</a
+              >
+            </td>
+            <td align="center">
+              <a
+                href="/wiki/1953_British_Mount_Everest_expedition"
+                title="1953 British Mount Everest expedition"
+                >1953</a
+              >
+            </td>
+            <td align="right">145</td>
+            <td align="right">121</td>
+            <td>
+              <link
+                rel="mw-deduplicated-inline-style"
+                href="mw-data:TemplateStyles:r979066050"
+              />
+              <ul class="cslist">
+                <li><a href="/wiki/Nepal" title="Nepal">Nepal</a></li>
+                <li><a href="/wiki/China" title="China">China</a></li>
+              </ul>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

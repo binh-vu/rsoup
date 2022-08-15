@@ -28,12 +28,14 @@ impl TableExtractor {
         "*",
         ignored_tags = "None",
         discard_tags = "None",
+        keep_tags = "None",
         only_keep_inline_tags = "true"
     )]
     pub fn new(
         context_extractor: ContextExtractor,
         ignored_tags: Option<Vec<&str>>,
         discard_tags: Option<Vec<&str>>,
+        keep_tags: Option<Vec<&str>>,
         only_keep_inline_tags: bool,
     ) -> Self {
         let discard_tags_ = HashSet::from_iter(
@@ -48,11 +50,17 @@ impl TableExtractor {
                 .into_iter()
                 .map(str::to_owned),
         );
+        let keep_tags_ = HashSet::from_iter(
+            keep_tags
+                .unwrap_or(["ol", "ul", "li"].to_vec())
+                .into_iter()
+                .map(str::to_owned),
+        );
 
         TableExtractor {
             ignored_tags: ignored_tags_,
             discard_tags: discard_tags_,
-            keep_tags: HashSet::new(),
+            keep_tags: keep_tags_,
             only_keep_inline_tags,
             context_extractor,
         }
@@ -79,23 +87,6 @@ impl TableExtractor {
 }
 
 impl TableExtractor {
-    pub fn default(context_extractor: ContextExtractor) -> Self {
-        let discard_tags = HashSet::from_iter(
-            ["script", "style", "noscript", "table"]
-                .into_iter()
-                .map(str::to_owned),
-        );
-        let ignored_tags = HashSet::from_iter(["div"].into_iter().map(str::to_owned));
-
-        TableExtractor {
-            ignored_tags,
-            discard_tags,
-            only_keep_inline_tags: false,
-            context_extractor,
-            keep_tags: HashSet::new(),
-        }
-    }
-
     /// Extract tables from HTML.
     pub fn extract_tables<'t>(
         &self,

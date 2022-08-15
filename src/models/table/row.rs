@@ -1,10 +1,11 @@
 use hashbrown::HashMap;
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::{exceptions::PyKeyError, prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use super::Cell;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[pyclass(module = "rsoup.rsoup")]
 pub struct Row {
     #[pyo3(get)]
@@ -15,6 +16,23 @@ pub struct Row {
 
 #[pymethods]
 impl Row {
+    #[new]
+    pub fn new(cells: Vec<Py<Cell>>, attrs: HashMap<String, String>) -> Self {
+        Row { cells, attrs }
+    }
+
+    fn get_cell(&self, py: Python, ci: usize) -> PyResult<Py<Cell>> {
+        if ci >= self.cells.len() {
+            return Err(PyKeyError::new_err(format!(
+                "Key {} is out of cells' range [0, {})",
+                ci,
+                self.cells.len()
+            )));
+        }
+
+        Ok(self.cells[ci].clone_ref(py))
+    }
+
     fn iter_cells(slf: Py<Row>, py: Python) -> super::cell_iter::CellRIter {
         super::cell_iter::CellRIter {
             row: slf.clone_ref(py),
@@ -35,5 +53,26 @@ impl Row {
                 .collect::<PyResult<Vec<_>>>()?,
         )?;
         Ok(o.into_py(py))
+    }
+
+    pub(super) fn to_list(&self, py: Python) -> Vec<String> {
+        self.cells
+            .iter()
+            .map(|c| c.borrow(py).value.borrow(py).text.clone())
+            .collect()
+    }
+}
+
+impl fmt::Debug for Row {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Python::with_gil(|py| {
+            f.debug_struct("Row")
+                .field(
+                    "cells",
+                    &self.cells.iter().map(|l| l.borrow(py)).collect::<Vec<_>>(),
+                )
+                .field("attrs", &self.attrs)
+                .finish()
+        })
     }
 }

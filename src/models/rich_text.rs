@@ -52,18 +52,6 @@ impl RichText {
         }
     }
 
-    pub fn from_str(text: &str) -> RichText {
-        RichText {
-            text: text.to_owned(),
-            element: SimpleTree::new(RichTextElement {
-                tag: PSEUDO_TAG.to_owned(),
-                start: 0,
-                end: text.len(),
-                attrs: HashMap::new(),
-            }),
-        }
-    }
-
     pub fn get_tag(&self) -> &str {
         self.element.get_root().tag.as_str()
     }
@@ -96,6 +84,19 @@ impl RichText {
 
 #[pymethods]
 impl RichText {
+    #[staticmethod]
+    pub fn from_str(text: &str) -> RichText {
+        RichText {
+            text: text.to_owned(),
+            element: SimpleTree::new(RichTextElement {
+                tag: PSEUDO_TAG.to_owned(),
+                start: 0,
+                end: text.len(),
+                attrs: HashMap::new(),
+            }),
+        }
+    }
+
     pub fn iter_element_id(&self) -> RangeIter {
         RangeIter {
             start: 0,

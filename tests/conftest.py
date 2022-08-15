@@ -1,8 +1,8 @@
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import pytest
-from dataclasses import dataclass
 
 
 @dataclass
@@ -21,5 +21,9 @@ def resource_dir() -> Path:
 def wikipages(resource_dir: Path) -> List[Webpage]:
     lst = []
     for file in (resource_dir / "wikipedia").glob("*.html"):
-        lst.append(Webpage(url=f"https://en.wikipedia.org/wiki/{file.stem}", html=file.read_text()))
+        lst.append(
+            Webpage(
+                url=f"https://en.wikipedia.org/wiki/{file.stem}", html=file.read_text()
+            )
+        )
     return lst

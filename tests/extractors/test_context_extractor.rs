@@ -1,16 +1,8 @@
+use crate::get_doc;
 use anyhow::Result;
 use pyo3::Python;
 use rsoup::extractors::context_v1::ContextExtractor;
-use scraper::{Html, Node, Selector};
-use std::{fs, path::Path};
-
-fn get_doc(filename: &str) -> Result<Html> {
-    let html_file = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/resources")
-        .join(filename);
-    let html = fs::read_to_string(html_file)?;
-    Ok(Html::parse_document(&html))
-}
+use scraper::{Node, Selector};
 
 #[test]
 fn test_locate_content_before_and_after() -> Result<()> {
@@ -19,7 +11,7 @@ fn test_locate_content_before_and_after() -> Result<()> {
     let doc = get_doc("context/one-level.html")?;
     let selector = Selector::parse("#marker").unwrap();
 
-    let elements = doc.select(&selector).collect::<Vec<_>>();
+    let elements = doc.html.select(&selector).collect::<Vec<_>>();
     assert_eq!(elements.len(), 1);
 
     let (tree_before, tree_after) = extractor.locate_content_before_and_after(*elements[0])?;
@@ -66,7 +58,7 @@ fn test_flatten_node() -> Result<()> {
     let doc = get_doc("context/three-level.html")?;
     let selector = Selector::parse("#section-1").unwrap();
 
-    let elements = doc.select(&selector).collect::<Vec<_>>();
+    let elements = doc.html.select(&selector).collect::<Vec<_>>();
     assert_eq!(elements.len(), 1);
 
     let mut output = Vec::new();
@@ -100,7 +92,7 @@ fn test_context_extractor() -> Result<()> {
     let doc = get_doc("context/three-level.html")?;
     let selector = Selector::parse("#marker").unwrap();
 
-    let elements = doc.select(&selector).collect::<Vec<_>>();
+    let elements = doc.html.select(&selector).collect::<Vec<_>>();
     assert_eq!(elements.len(), 1);
     let gil = Python::acquire_gil();
     let py = gil.python();

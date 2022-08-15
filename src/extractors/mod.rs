@@ -8,9 +8,12 @@ use pyo3::prelude::*;
 
 #[pyclass(module = "rsoup.rsoup", unsendable)]
 pub struct Document {
-    url: String,
-    html: Html,
+    pub url: String,
+    pub html: Html,
 }
+
+#[pyclass(module = "rsoup.rsoup", unsendable)]
+pub struct ElementRef {}
 
 #[pymethods]
 impl Document {
@@ -19,4 +22,9 @@ impl Document {
         let html = Html::parse_document(&doc);
         Document { url, html }
     }
+
+    // pub fn select(&self, query: &str) -> PyResult<Vec<ElementRef>> {
+    //     let selector = Selector::parse(query)?;
+    //     unimplemented!()
+    // }
 }

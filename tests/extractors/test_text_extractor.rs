@@ -1,3 +1,4 @@
+use crate::get_doc;
 use anyhow::Result;
 use hashbrown::{HashMap, HashSet};
 use rsoup::{
@@ -6,21 +7,12 @@ use rsoup::{
     models::rich_text::{RichText, RichTextElement},
 };
 use scraper::{Html, Selector};
-use std::{fs, path::Path};
-
-pub fn get_doc(filename: &str) -> Result<Html> {
-    let html_file = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/resources")
-        .join(filename);
-    let html = fs::read_to_string(html_file)?;
-    Ok(Html::parse_document(&html))
-}
 
 #[test]
 fn test_get_text() -> Result<()> {
     let doc = get_doc("parser.html")?;
     let selector = Selector::parse(r".test\:get-text").expect("selector is invalid");
-    let els = doc.select(&selector).collect::<Vec<_>>();
+    let els = doc.html.select(&selector).collect::<Vec<_>>();
 
     assert_eq!(els.len(), 4);
     assert_eq!(get_text(&els[0]), "What are youdoing ?");
@@ -106,7 +98,7 @@ fn test_get_rich_text() -> Result<()> {
 
     let doc = get_doc("parser.html")?;
     let selector = Selector::parse(r".test\:get-text").expect("selector is invalid");
-    let els = doc.select(&selector).collect::<Vec<_>>();
+    let els = doc.html.select(&selector).collect::<Vec<_>>();
 
     let text = get_rich_text(&els[3], &ignored_tags, true, &discard_tags, &keep_tags);
     assert_eq!(

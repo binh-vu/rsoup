@@ -1,16 +1,18 @@
 use anyhow::Result;
 use hashbrown::HashMap;
 use pyo3::{
+    exceptions::PyKeyError,
     prelude::*,
-    types::{PyBytes, PyDict},
+    types::{PyBytes, PyDict, PyString},
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::fmt;
 
 use super::{Cell, Row};
 use crate::models::{content_hierarchy::ContentHierarchy, rich_text::RichText};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[pyclass(module = "rsoup.rsoup")]
 pub struct Table {
     #[pyo3(get, set)]
@@ -29,6 +31,34 @@ pub struct Table {
 
 #[pymethods]
 impl Table {
+    #[new]
+    #[args(
+        "*",
+        id = "String::new()",
+        url = "String::new()",
+        caption = "String::new()",
+        attrs = "HashMap::new()",
+        context = "Vec::new()",
+        rows = "Vec::new()"
+    )]
+    pub fn new(
+        id: String,
+        url: String,
+        caption: String,
+        attrs: HashMap<String, String>,
+        context: Vec<Py<ContentHierarchy>>,
+        rows: Vec<Py<Row>>,
+    ) -> Self {
+        Self {
+            id,
+            url,
+            caption,
+            attrs,
+            context,
+            rows,
+        }
+    }
+
     /// Span the table by copying values to merged field
     pub fn span(&self, py: Python) -> PyResult<Table> {
         if self.rows.len() == 0 {
@@ -62,6 +92,7 @@ impl Table {
         }
 
         let max_ncols = *cols.iter().enumerate().max_by_key(|x| x.1).unwrap().1 as i32;
+        // println!("max_ncols: {}", max_ncols);
 
         // sometimes they do show an extra cell for over-colspan row, but it's not consistent or at least not easy for me to find the rule
         // so I decide to not handle that. Hope that we don't have many tables like that.
@@ -113,10 +144,19 @@ impl Table {
             }
 
             // add more cells from the top since we reach the end
-            while pending_ops.contains_key(&(pj, pj)) && pj < max_ncols {
-                new_row.push(Py::new(py, pending_ops.remove(&(pj, pj)).unwrap())?);
+            while pending_ops.contains_key(&(pi, pj)) && pj < max_ncols {
+                // println!(
+                //     "\tadding trailing pending ops: {:?}",
+                //     pending_ops.get(&(pi, pj)).unwrap()
+                // );
+                new_row.push(Py::new(py, pending_ops.remove(&(pi, pj)).unwrap())?);
                 pj += 1;
             }
+
+            // println!(
+            //     ">>> row {}\n\tnew_row: {:?}\n\tpending_ops: {:?}",
+            //     pi, new_row, pending_ops
+            // );
 
             data.push(Py::new(
                 py,
@@ -200,6 +240,49 @@ impl Table {
         }))
     }
 
+    pub fn n_rows(&self) -> usize {
+        self.rows.len()
+    }
+
+    pub fn shape(&self, py: Python) -> (usize, usize) {
+        if self.rows.len() == 0 {
+            (0, 0)
+        } else {
+            (self.rows.len(), self.rows[0].borrow(py).cells.len())
+        }
+    }
+
+    pub fn get_cell(&self, py: Python, ri: usize, ci: usize) -> PyResult<Py<Cell>> {
+        if ri >= self.rows.len() {
+            return Err(PyKeyError::new_err(format!(
+                "Key {} is out of rows' range [0, {})",
+                ri,
+                self.rows.len()
+            )));
+        }
+        let row = self.rows[ri].borrow(py);
+        if ci >= row.cells.len() {
+            return Err(PyKeyError::new_err(format!(
+                "Key {} is out of cells' range [0, {})",
+                ci,
+                row.cells.len()
+            )));
+        }
+
+        Ok(row.cells[ci].clone_ref(py))
+    }
+
+    pub fn get_row(&self, py: Python, ri: usize) -> PyResult<Py<Row>> {
+        if ri >= self.rows.len() {
+            return Err(PyKeyError::new_err(format!(
+                "Key {} is out of rows' range [0, {})",
+                ri,
+                self.rows.len()
+            )));
+        }
+        Ok(self.rows[ri].clone_ref(py))
+    }
+
     pub fn iter_cells(slf: Py<Table>, py: Python) -> super::cell_iter::CellTIter {
         super::cell_iter::CellTIter {
             table: slf.clone_ref(py),
@@ -223,29 +306,41 @@ impl Table {
         }
     }
 
-    fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let out = postcard::to_allocvec(self)?;
         Ok(out)
     }
 
     #[staticmethod]
-    fn from_bytes(bytes: &PyBytes) -> Result<Table> {
+    pub fn from_bytes(bytes: &PyBytes) -> Result<Table> {
         let table = postcard::from_bytes(bytes.as_bytes())?;
         Ok(table)
     }
 
-    fn to_json(&self) -> Result<String> {
+    pub fn to_json(&self) -> Result<String> {
         let out = serde_json::to_string(self)?;
         Ok(out)
     }
 
     #[staticmethod]
-    fn from_json(dat: &str) -> Result<Table> {
+    pub fn from_json(dat: &str) -> Result<Table> {
         let out = serde_json::from_str(dat)?;
         Ok(out)
     }
 
-    fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+    pub fn to_base64(&self) -> Result<String> {
+        let out = base64::encode(self.to_bytes()?);
+        Ok(out)
+    }
+
+    #[staticmethod]
+    pub fn from_base64(b64s: &PyString) -> Result<Table> {
+        let bytes = base64::decode(b64s.to_str()?)?;
+        let table = postcard::from_bytes(&bytes)?;
+        Ok(table)
+    }
+
+    pub fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
         let o = PyDict::new(py);
 
         o.set_item("id", &self.id)?;
@@ -270,5 +365,52 @@ impl Table {
         )?;
 
         Ok(o.into_py(py))
+    }
+
+    pub fn to_list(&self, py: Python) -> PyResult<Vec<Vec<String>>> {
+        Ok(self.rows.iter().map(|r| r.borrow(py).to_list(py)).collect())
+    }
+
+    fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
+        Ok(PyBytes::new(py, &self.to_bytes()?).into())
+    }
+
+    fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
+        let b = state.as_ref(py).downcast::<PyBytes>()?;
+        let slf = Table::from_bytes(b)?;
+
+        self.id = slf.id;
+        self.url = slf.url;
+        self.caption = slf.caption;
+        self.attrs = slf.attrs;
+        self.context = slf.context;
+        self.rows = slf.rows;
+
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Table {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Python::with_gil(|py| {
+            f.debug_struct("Table")
+                .field("id", &self.id)
+                .field("url", &self.url)
+                .field("caption", &self.caption)
+                .field("attrs", &self.attrs)
+                .field(
+                    "context",
+                    &self
+                        .context
+                        .iter()
+                        .map(|x| x.borrow(py))
+                        .collect::<Vec<_>>(),
+                )
+                .field(
+                    "rows",
+                    &self.rows.iter().map(|x| x.borrow(py)).collect::<Vec<_>>(),
+                )
+                .finish()
+        })
     }
 }
