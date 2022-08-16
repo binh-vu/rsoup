@@ -10,7 +10,7 @@ use scraper::{Html, Selector};
 
 #[test]
 fn test_get_text() -> Result<()> {
-    let doc = get_doc("parser.html")?;
+    let doc = get_doc("extractors/text.html")?;
     let selector = Selector::parse(r".test\:get-text").expect("selector is invalid");
     let els = doc.html.select(&selector).collect::<Vec<_>>();
 
@@ -96,7 +96,7 @@ fn test_get_rich_text() -> Result<()> {
         );
     }
 
-    let doc = get_doc("parser.html")?;
+    let doc = get_doc("extractors/text.html")?;
     let selector = Selector::parse(r".test\:get-text").expect("selector is invalid");
     let els = doc.html.select(&selector).collect::<Vec<_>>();
 

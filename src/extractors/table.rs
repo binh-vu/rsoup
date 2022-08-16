@@ -107,7 +107,12 @@ impl TableExtractor {
             if el.select(&selector).next().is_some() {
                 continue;
             }
-            tables.push(self.extract_non_nested_table(py, el)?);
+            let table = self.extract_non_nested_table(py, el)?;
+            // skip if no rows or columns
+            if table.rows.len() == 0 || table.rows.iter().all(|r| r.borrow(py).cells.len() == 0) {
+                continue;
+            }
+            tables.push(table);
             table_els.push(el);
             table_nos.push(table_nos.len());
         }

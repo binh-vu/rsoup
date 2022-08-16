@@ -8,7 +8,7 @@ use scraper::{Node, Selector};
 fn test_locate_content_before_and_after() -> Result<()> {
     let extractor = ContextExtractor::default();
 
-    let doc = get_doc("context/one-level.html")?;
+    let doc = get_doc("extractors/context/one-level.html")?;
     let selector = Selector::parse("#marker").unwrap();
 
     let elements = doc.html.select(&selector).collect::<Vec<_>>();
@@ -55,7 +55,7 @@ body -> {
 fn test_flatten_node() -> Result<()> {
     let extractor = ContextExtractor::default();
 
-    let doc = get_doc("context/three-level.html")?;
+    let doc = get_doc("extractors/context/three-level.html")?;
     let selector = Selector::parse("#section-1").unwrap();
 
     let elements = doc.html.select(&selector).collect::<Vec<_>>();
@@ -89,7 +89,7 @@ fn test_flatten_node() -> Result<()> {
 fn test_context_extractor() -> Result<()> {
     let extractor = ContextExtractor::default();
 
-    let doc = get_doc("context/three-level.html")?;
+    let doc = get_doc("extractors/context/three-level.html")?;
     let selector = Selector::parse("#marker").unwrap();
 
     let elements = doc.html.select(&selector).collect::<Vec<_>>();
