@@ -97,6 +97,10 @@ impl RichText {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.text.len()
+    }
+
     pub fn iter_element_id(&self) -> RangeIter {
         RangeIter {
             start: 0,
