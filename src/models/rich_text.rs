@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 use pyo3::exceptions::PyKeyError;
 use std::fmt;
 
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::{prelude::*, types::PyDict, types::PyList};
 use serde::{Deserialize, Serialize};
 
 use crate::misc::range_iter::RangeIter;
@@ -255,6 +255,41 @@ impl RichText {
         d.set_item("element", tree)?;
         Ok(d.into_py(py))
     }
+
+    #[staticmethod]
+    pub fn from_dict(obj: &PyDict) -> PyResult<Self> {
+        let text = obj
+            .get_item("text")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("text"))?
+            .extract::<String>()?;
+
+        let elem_obj = obj
+            .get_item("element")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("element"))?
+            .downcast::<PyDict>()?;
+        let root = elem_obj
+            .get_item("root")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("root in element"))?
+            .extract::<usize>()?;
+        let nodes = elem_obj
+            .get_item("nodes")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("nodes in element"))?
+            .downcast::<PyList>()?
+            .iter()
+            .map(|o| RichTextElement::from_dict(o.downcast::<PyDict>()?))
+            .collect::<PyResult<Vec<_>>>()?;
+        let node2children = elem_obj
+            .get_item("node2children")
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyKeyError, _>("node2children in element")
+            })?
+            .extract::<Vec<Vec<usize>>>()?;
+
+        Ok(RichText {
+            text,
+            element: SimpleTree::from_data(root, nodes, node2children),
+        })
+    }
 }
 
 #[pymethods]
@@ -276,6 +311,32 @@ impl RichTextElement {
         d.set_item("end", self.end)?;
         d.set_item("attrs", &self.attrs)?;
         Ok(d.into_py(py))
+    }
+
+    #[staticmethod]
+    fn from_dict(obj: &PyDict) -> PyResult<RichTextElement> {
+        let tag = obj
+            .get_item("tag")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("tag"))?
+            .extract::<String>()?;
+        let start = obj
+            .get_item("start")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("start"))?
+            .extract::<usize>()?;
+        let end = obj
+            .get_item("end")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("end"))?
+            .extract::<usize>()?;
+        let attrs = obj
+            .get_item("attrs")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("attrs"))?
+            .extract::<HashMap<String, String>>()?;
+        Ok(RichTextElement {
+            tag,
+            start,
+            end,
+            attrs,
+        })
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::models::rich_text::RichText;
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::{prelude::*, types::PyDict, types::PyList};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -55,6 +55,46 @@ impl ContentHierarchy {
                 .collect::<PyResult<Vec<_>>>()?,
         )?;
         Ok(d.into_py(py))
+    }
+
+    #[staticmethod]
+    pub fn from_dict(py: Python, obj: &PyDict) -> PyResult<Self> {
+        let level = obj
+            .get_item("level")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("level"))?
+            .extract::<usize>()?;
+
+        let heading = Py::new(
+            py,
+            RichText::from_dict(
+                obj.get_item("heading")
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("heading"))?
+                    .downcast::<PyDict>()?,
+            )?,
+        )?;
+
+        let content_before = obj
+            .get_item("content_before")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("content_before"))?
+            .downcast::<PyList>()?
+            .iter()
+            .map(|o| Py::new(py, RichText::from_dict(o.downcast::<PyDict>()?)?))
+            .collect::<PyResult<Vec<_>>>()?;
+
+        let content_after = obj
+            .get_item("content_after")
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("content_after"))?
+            .downcast::<PyList>()?
+            .iter()
+            .map(|o| Py::new(py, RichText::from_dict(o.downcast::<PyDict>()?)?))
+            .collect::<PyResult<Vec<_>>>()?;
+
+        Ok(ContentHierarchy {
+            level,
+            heading,
+            content_before,
+            content_after,
+        })
     }
 }
 

@@ -26,6 +26,14 @@ impl<N> SimpleTree<N> {
         }
     }
 
+    pub fn from_data(root: usize, nodes: Vec<N>, node2children: Vec<Vec<usize>>) -> SimpleTree<N> {
+        SimpleTree {
+            root,
+            nodes,
+            node2children,
+        }
+    }
+
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
