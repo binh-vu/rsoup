@@ -6,7 +6,7 @@ use std::fmt;
 use super::Cell;
 
 #[derive(Clone, Deserialize, Serialize)]
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 pub struct Row {
     #[pyo3(get)]
     pub cells: Vec<Py<Cell>>,

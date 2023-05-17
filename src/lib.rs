@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyList};
 
 pub mod error;
 pub mod extractors;
@@ -13,7 +13,10 @@ use models::rich_text::{RichText, RichTextElement};
 use models::table::{Cell, Row, Table};
 
 #[pymodule]
-fn rsoup(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn core(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    m.setattr("__path__", PyList::empty(py))?;
+
     m.add_class::<Table>()?;
     m.add_class::<Row>()?;
     m.add_class::<Cell>()?;

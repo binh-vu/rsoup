@@ -1,11 +1,13 @@
+use crate::error::into_pyerr;
 use crate::models::rich_text::RichText;
-use pyo3::{prelude::*, types::PyDict, types::PyList};
+use postcard::{from_bytes, to_allocvec};
+use pyo3::{prelude::*, types::PyBytes, types::PyDict, types::PyList};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Content at each level that leads to the table
 #[derive(Clone, Deserialize, Serialize)]
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 pub struct ContentHierarchy {
     // level of the heading, level 0 indicate the beginning of the document
     // but should not be used
@@ -36,6 +38,11 @@ impl ContentHierarchy {
 
 #[pymethods]
 impl ContentHierarchy {
+    #[new]
+    pub fn construct(py: Python) -> Self {
+        ContentHierarchy::new(0, Py::new(py, RichText::empty()).unwrap())
+    }
+
     pub fn to_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
         let d = PyDict::new(py);
         d.set_item("level", self.level)?;
@@ -95,6 +102,16 @@ impl ContentHierarchy {
             content_before,
             content_after,
         })
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<&'py PyBytes> {
+        let out = to_allocvec(&self).map_err(into_pyerr)?;
+        Ok(PyBytes::new(py, &out))
+    }
+
+    pub fn __setstate__(&mut self, state: &PyBytes) -> PyResult<()> {
+        *self = from_bytes::<ContentHierarchy>(state.as_bytes()).map_err(into_pyerr)?;
+        Ok(())
     }
 }
 

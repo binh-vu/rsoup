@@ -2,7 +2,7 @@ from kgdata.wikipedia.config import WPDataDirConfig
 from kgdata.wikipedia.datasets.html_articles import html_articles, deser_html_articles
 from sm.prelude import *
 from rsoup.python.table_extractor import HTMLTableExtractor
-from rsoup.rsoup import TableExtractor, ContextExtractor, Table
+from rsoup.core import TableExtractor, ContextExtractor, Table
 from scripts.config import DATA_DIR
 
 WPDataDirConfig.init(DATA_DIR / "wikipedia/20220420")

@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 use super::{Cell, Row, Table};
 
-#[pyclass(module = "rsoup.rsoup", unsendable)]
+#[pyclass(module = "rsoup.core", unsendable)]
 pub struct CellRIter {
     pub row: Py<Row>,
     pub cell_index: usize,
@@ -26,7 +26,7 @@ impl CellRIter {
     }
 }
 
-#[pyclass(module = "rsoup.rsoup", unsendable)]
+#[pyclass(module = "rsoup.core", unsendable)]
 pub struct CellTIter {
     pub table: Py<Table>,
     pub row_index: usize,
@@ -70,7 +70,7 @@ impl CellTIter {
     }
 }
 
-#[pyclass(module = "rsoup.rsoup", unsendable)]
+#[pyclass(module = "rsoup.core", unsendable)]
 pub struct CellTEnumerator {
     pub table: Py<Table>,
     pub row_index: usize,

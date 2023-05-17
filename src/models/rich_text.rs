@@ -11,7 +11,7 @@ use crate::misc::tree::simple_tree::SimpleTree;
 
 pub const PSEUDO_TAG: &str = "";
 
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 #[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RichText {
     #[pyo3(get)]
@@ -24,7 +24,7 @@ pub struct RichText {
 }
 
 /// Represent an html element.
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RichTextElement {
     #[pyo3(get)]
@@ -352,7 +352,7 @@ impl fmt::Debug for RichText {
     }
 }
 
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 pub struct RichTextElementIdPreorderIter {
     text: Py<RichText>,
     stack: Vec<(usize, usize)>,

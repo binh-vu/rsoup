@@ -1,3 +1,4 @@
+use postcard;
 use pyo3::PyErr;
 use thiserror::Error;
 
@@ -23,6 +24,9 @@ pub enum RSoupError {
     /// PyO3 error
     #[error(transparent)]
     PyErr(#[from] pyo3::PyErr),
+
+    #[error(transparent)]
+    PostcardError(#[from] postcard::Error),
 }
 
 pub fn into_pyerr<E: Into<RSoupError>>(err: E) -> PyErr {

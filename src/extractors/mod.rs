@@ -6,13 +6,13 @@ pub mod text;
 
 use pyo3::prelude::*;
 
-#[pyclass(module = "rsoup.rsoup", unsendable)]
+#[pyclass(module = "rsoup.core", unsendable)]
 pub struct Document {
     pub url: String,
     pub html: Html,
 }
 
-#[pyclass(module = "rsoup.rsoup", unsendable)]
+#[pyclass(module = "rsoup.core", unsendable)]
 pub struct ElementRef {}
 
 #[pymethods]

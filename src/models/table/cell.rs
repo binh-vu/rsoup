@@ -5,7 +5,7 @@ use std::fmt;
 
 use crate::models::rich_text::RichText;
 
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Cell {
     #[pyo3(get, set)]

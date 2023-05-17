@@ -18,7 +18,7 @@ use pyo3::prelude::*;
 use scraper::Node;
 
 #[derive(Clone)]
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 pub struct ContextExtractor {
     // do not include those tags in the rich text
     ignored_tags: HashSet<String>,

@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 pub struct RangeIter {
     pub start: usize,
     pub end: usize,

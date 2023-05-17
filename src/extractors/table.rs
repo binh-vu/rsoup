@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use scraper::{ElementRef, Node, Selector};
 use url::Url;
 
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 pub struct TableExtractor {
     ignored_tags: HashSet<String>,
     discard_tags: HashSet<String>,

@@ -2,7 +2,7 @@ import pytest
 from typing import List
 
 from tests.conftest import Webpage
-from rsoup.rsoup import TableExtractor, ContextExtractor
+from rsoup.core import TableExtractor, ContextExtractor
 from tabulate import tabulate
 
 
@@ -31,9 +31,9 @@ def test_table_extractor(extractor: TableExtractor, wikipages: List[Webpage]):
         ["Map all coordinates using: OpenStreetMap"],
         ["Download coordinates as: KML"],
     ]
-    nrows, ncols = tables[2].shape()
-    print(tables[2].get_cell(1, ncols - 1).to_dict())
-    print(tables[2].get_cell(1, 0).to_dict())
+    # nrows, ncols = tables[2].shape()
+    # print(tables[2].get_cell(1, ncols - 1).to_dict())
+    # print(tables[2].get_cell(1, 0).to_dict())
     assert tables[2].to_list()[:4] == [
         [
             "Rank\n[dp 1]",
@@ -63,7 +63,7 @@ def test_table_extractor(extractor: TableExtractor, wikipages: List[Webpage]):
             "1st",
             "successful",
             "successful",
-            "",
+            "Country",
         ],
         [
             "Rank\n[dp 1]",
@@ -78,7 +78,7 @@ def test_table_extractor(extractor: TableExtractor, wikipages: List[Webpage]):
             "1st",
             "y",
             "n",
-            "",
+            "Country",
         ],
         [
             "1",

@@ -13,7 +13,7 @@ use super::{Cell, Row};
 use crate::models::{content_hierarchy::ContentHierarchy, rich_text::RichText};
 
 #[derive(Clone, Deserialize, Serialize)]
-#[pyclass(module = "rsoup.rsoup")]
+#[pyclass(module = "rsoup.core")]
 pub struct Table {
     #[pyo3(get, set)]
     pub id: String,

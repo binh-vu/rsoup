@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 use super::{Row, Table};
 
-#[pyclass(module = "rsoup.rsoup", unsendable)]
+#[pyclass(module = "rsoup.core", unsendable)]
 pub struct RowIter {
     pub table: Py<Table>,
     pub row_index: usize,
