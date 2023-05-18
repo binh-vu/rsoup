@@ -19,7 +19,7 @@ jobs:
           mkdir dist
           echo 'hello' > "dist/rsoup-cp38.whl"
           ls dist/
-          python -c 'import subprocess, glob; file = glob.glob("dist/*cp38*.whl")[0]; subprocess.check_output(["echo", file])'
+          python -c 'import subprocess, glob, os; file = glob.glob(os.path.join("dist", "*cp38*.whl"))[0]; subprocess.check_output(["echo", file])'
           exit 1
       - uses: actions/checkout@v3
       - name: Set up Python
