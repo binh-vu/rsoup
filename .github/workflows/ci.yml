@@ -14,13 +14,6 @@ jobs:
         platform: ["windows-latest"]
     runs-on: ${{ matrix.platform }}
     steps:
-      - name: Test
-        run: |
-          mkdir dist
-          echo 'hello' > "dist/rsoup-cp38.whl"
-          ls dist/
-          python -c "import subprocess, glob, os; file = glob.glob(os.path.join('dist', '*cp38*.whl'))[0]; subprocess.check_output(['echo', file])"
-          exit 1
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -36,8 +29,7 @@ jobs:
       - name: Run test
         if: matrix.python == '3.8'
         run: |
-          # pip install dist/*cp38*.whl
-          python -c 'import subprocess, glob; file = glob.glob("dist/*cp38*.whl")[0]; subprocess.check_output(["pip", "install", file])'
+          python -c "import subprocess, glob, os; file = glob.glob(os.path.join('dist', '*cp38*.whl'))[0]; subprocess.check_output(['pip', 'install', file])"
           pip install pytest
           mv rsoup rsoup2
           pytest -xs tests/
