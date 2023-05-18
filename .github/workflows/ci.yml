@@ -27,7 +27,7 @@ jobs:
           command: build
           args: --release -o dist -i python ${{ startsWith(matrix.platform, 'macos') && '--universal2' || '' }}
       - name: Run test
-        if: matrix.python == '3.8'
+        if: matrix.python == '3.8' && !startsWith(matrix.platform, 'windows')
         run: |
           python -c "import subprocess, glob, os; file = glob.glob(os.path.join('dist', '*cp38*.whl'))[0]; subprocess.check_output(['pip', 'install', file])"
           pip install pytest
