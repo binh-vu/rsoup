@@ -33,6 +33,7 @@ jobs:
         run: |
           pip install dist/*cp38*.whl
           pip install pytest
+          mv rsoup rsoup2
           pytest -xs tests/
       - name: Upload wheels
         uses: actions/upload-artifact@v2
@@ -83,6 +84,7 @@ jobs:
         run: |
           pip install dist/*cp38*.whl
           pip install pytest
+          mv rsoup rsoup2
           pytest -xs tests/
       - name: Upload wheels
         uses: actions/upload-artifact@v2
