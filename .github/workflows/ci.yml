@@ -8,10 +8,8 @@ jobs:
   build:
     strategy:
       matrix:
-        # python: ["3.8", "3.9", "3.10"]
-        # platform: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python: ["3.8"]
-        platform: ["windows-latest"]
+        python: ["3.8", "3.9", "3.10"]
+        platform: ["ubuntu-latest", "macos-latest", "windows-latest"]
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v3
@@ -27,10 +25,9 @@ jobs:
           command: build
           args: --release -o dist -i python ${{ startsWith(matrix.platform, 'macos') && '--universal2' || '' }}
       - name: Run test
-        if: matrix.python == '3.8'
+        if: matrix.python == '3.8' && !startsWith(matrix.platform, 'windows')
         run: |
-          # pip install dist/*cp38*.whl
-          python -c 'import subprocess, glob; file = glob.glob("dist/*cp38*.whl")[0]; subprocess.check_output(["pip", "install", file])'
+          python -c "import subprocess, glob, os; file = glob.glob(os.path.join('dist', '*cp38*.whl'))[0]; subprocess.check_output(['pip', 'install', file])"
           pip install pytest
           mv rsoup rsoup2
           pytest -xs tests/
