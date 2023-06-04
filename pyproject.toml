@@ -1,6 +1,6 @@
 [project]
 name = "rsoup"
-version = "3.0.1"
+version = "3.0.2"
 authors = [
   { name = "Binh Vu", email = "binh@toan2.com" },
 ]
@@ -29,6 +29,9 @@ dev = [
     'black >= 22.10.0, < 23.0.0',
 ]
 
+[tool.maturin]
+module-name = "rsoup.core"
+
 [build-system]
-requires = ["maturin>=0.14,<0.15"]
+requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
