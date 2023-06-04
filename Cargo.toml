@@ -8,9 +8,6 @@ edition = "2021"
 name = "rsoup"
 crate-type = ["cdylib", "rlib"]
 
-[package.metadata.maturin]
-name = "rsoup.core"
-
 [dependencies]
 anyhow = { version = "1.0.59", features = ["backtrace"] }
 base64 = "0.13.0"
