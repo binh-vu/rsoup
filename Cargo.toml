@@ -1,6 +1,6 @@
 [package]
 name = "rsoup"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,18 +14,15 @@ base64 = "0.13.0"
 criterion = "0.3.6"
 ego-tree = "0.6.2"
 hashbrown = { version = "0.12.3", features = ["serde"] }
-html5ever = "0.26.0"
 lazy_static = "1.4.0"
 phf = { version = "0.11.0", features = ["macros"] }
 postcard = { version = "1.0.1", features = ["alloc"] }
 pyo3 = { version = "0.16.3", features = ["anyhow", "hashbrown", "serde"] } 
 regex = "1.6.0"
-scraper = "0.13.0"
-selectors = "0.23.0"
+scraper = "0.17.1"
 serde = "1.0.143"
 serde_json = { version = "1.0.83", features = ["preserve_order"] }
 smallvec = "1.9.0"
-soup = "0.5.1"
 thiserror = "1.0.32"
 url = "2.2.2"
 
