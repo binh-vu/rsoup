@@ -1,6 +1,6 @@
 [project]
 name = "rsoup"
-version = "3.1.3"
+version = "3.1.4"
 authors = [{ name = "Binh Vu", email = "binh@toan2.com" }]
 description = "A library for web scraper that handles text correctly and is very fast (Rust backend)"
 readme = "README.md"

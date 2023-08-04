@@ -24,6 +24,7 @@ class TableExtractor:
         ignored_tags: Optional[list[str]] = None,
         discard_tags: Optional[list[str]] = None,
         only_keep_inline_tags: bool = True,
+        html_error_forgiveness: bool = True,
     ) -> None: ...
     def extract(
         self,

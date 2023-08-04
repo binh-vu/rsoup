@@ -19,6 +19,7 @@ pub struct TableExtractor {
     keep_tags: HashSet<String>,
     only_keep_inline_tags: bool,
     context_extractor: ContextExtractor,
+    html_error_forgiveness: bool,
 }
 
 #[pymethods]
@@ -29,7 +30,8 @@ impl TableExtractor {
         ignored_tags = "None",
         discard_tags = "None",
         keep_tags = "None",
-        only_keep_inline_tags = "true"
+        only_keep_inline_tags = "true",
+        html_error_forgiveness = "true"
     )]
     pub fn new(
         context_extractor: ContextExtractor,
@@ -37,6 +39,7 @@ impl TableExtractor {
         discard_tags: Option<Vec<&str>>,
         keep_tags: Option<Vec<&str>>,
         only_keep_inline_tags: bool,
+        html_error_forgiveness: bool,
     ) -> Self {
         let discard_tags_ = HashSet::from_iter(
             discard_tags
@@ -63,6 +66,7 @@ impl TableExtractor {
             keep_tags: keep_tags_,
             only_keep_inline_tags,
             context_extractor,
+            html_error_forgiveness,
         }
     }
 
@@ -284,6 +288,9 @@ impl TableExtractor {
 
         let colspan = if raw_colspan == "" {
             1
+        } else if self.html_error_forgiveness {
+            atoi::atoi::<u16>(raw_colspan.as_bytes())
+                .ok_or_else(|| RSoupError::InvalidColSpanError(raw_colspan.to_owned()))?
         } else {
             // convert
             raw_colspan
@@ -292,6 +299,9 @@ impl TableExtractor {
         };
         let rowspan = if raw_rowspan == "" {
             1
+        } else if self.html_error_forgiveness {
+            atoi::atoi::<u16>(raw_rowspan.as_bytes())
+                .ok_or_else(|| RSoupError::InvalidRowSpanError(raw_rowspan.to_owned()))?
         } else {
             raw_rowspan
                 .parse::<u16>()
