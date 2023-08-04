@@ -288,14 +288,14 @@ impl TableExtractor {
             // convert
             raw_colspan
                 .parse::<u16>()
-                .map_err(|_| RSoupError::InvalidCellSpanError(raw_colspan.to_owned()))?
+                .map_err(|_| RSoupError::InvalidColSpanError(raw_colspan.to_owned()))?
         };
         let rowspan = if raw_rowspan == "" {
             1
         } else {
             raw_rowspan
                 .parse::<u16>()
-                .map_err(|_| RSoupError::InvalidCellSpanError(raw_rowspan.to_owned()))?
+                .map_err(|_| RSoupError::InvalidRowSpanError(raw_rowspan.to_owned()))?
         };
 
         Ok(Cell {

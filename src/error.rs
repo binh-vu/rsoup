@@ -8,14 +8,17 @@ pyo3::create_exception!(rsoup, InvalidCellSpanPyError, pyo3::exceptions::PyExcep
 /// Represent possible errors returned by this library.
 #[derive(Error, Debug)]
 pub enum RSoupError {
-    #[error("InvalidHTMLStructureError: {0}")]
+    #[error("InvalidHTMLStructureError: '{0}'")]
     InvalidHTMLStructureError(&'static str),
 
-    #[error("OverlapSpanError: {0}")]
+    #[error("OverlapSpanError: '{0}'")]
     OverlapSpanError(String),
 
-    #[error("InvalidCellSpanError: {0}")]
-    InvalidCellSpanError(String),
+    #[error("InvalidRowSpanError: '{0}'")]
+    InvalidRowSpanError(String),
+
+    #[error("InvalidColSpanError: '{0}'")]
+    InvalidColSpanError(String),
 
     /// Represents all other cases of `std::io::Error`.
     #[error(transparent)]
