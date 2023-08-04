@@ -11,7 +11,7 @@ fn get_tables(filename: &str, testcase: Option<&str>) -> Result<Vec<Table>> {
     let gil = Python::acquire_gil();
     let py = gil.python();
 
-    let extractor = TableExtractor::new(ContextExtractor::default(), None, None, None, true);
+    let extractor = TableExtractor::new(ContextExtractor::default(), None, None, None, true, false);
     let mut doc = get_doc(filename)?;
 
     if testcase.is_some() {

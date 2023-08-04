@@ -10,7 +10,7 @@ fn get_tables(filename: &str) -> Result<Vec<Table>> {
     let gil = Python::acquire_gil();
     let py = gil.python();
 
-    let extractor = TableExtractor::new(ContextExtractor::default(), None, None, None, true);
+    let extractor = TableExtractor::new(ContextExtractor::default(), None, None, None, true, false);
     let doc = get_doc(filename)?;
 
     Ok(extractor.extract_tables(py, &doc, false, false, false)?)
