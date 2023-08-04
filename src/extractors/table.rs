@@ -289,8 +289,7 @@ impl TableExtractor {
         let colspan = if raw_colspan == "" {
             1
         } else if self.html_error_forgiveness {
-            atoi::atoi::<u16>(raw_colspan.as_bytes())
-                .ok_or_else(|| RSoupError::InvalidColSpanError(raw_colspan.to_owned()))?
+            atoi::atoi::<u16>(raw_colspan.as_bytes()).unwrap_or(1)
         } else {
             // convert
             raw_colspan
@@ -300,8 +299,7 @@ impl TableExtractor {
         let rowspan = if raw_rowspan == "" {
             1
         } else if self.html_error_forgiveness {
-            atoi::atoi::<u16>(raw_rowspan.as_bytes())
-                .ok_or_else(|| RSoupError::InvalidRowSpanError(raw_rowspan.to_owned()))?
+            atoi::atoi::<u16>(raw_rowspan.as_bytes()).unwrap_or(1)
         } else {
             raw_rowspan
                 .parse::<u16>()
