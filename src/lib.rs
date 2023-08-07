@@ -8,6 +8,7 @@ pub mod extractors;
 pub mod misc;
 pub mod models;
 
+use extractors::elementrefview::RichTextConfig;
 use models::content_hierarchy::ContentHierarchy;
 use models::rich_text::{RichText, RichTextElement};
 use models::table::{Cell, Row, Table};
@@ -22,6 +23,7 @@ fn core(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Cell>()?;
     m.add_class::<ContentHierarchy>()?;
     m.add_class::<RichText>()?;
+    m.add_class::<RichTextConfig>()?;
     m.add_class::<RichTextElement>()?;
     m.add_class::<self::extractors::table::TableExtractor>()?;
     m.add_class::<self::extractors::context_v1::ContextExtractor>()?;
