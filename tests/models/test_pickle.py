@@ -2,7 +2,7 @@ from pathlib import Path
 import pickle
 from typing import List
 import pytest
-from rsoup.core import ContextExtractor, Table, TableExtractor, ContentHierarchy
+from rsoup.core import ContextExtractor, RichText, Table, TableExtractor, ContentHierarchy
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def tables(resource_dir: Path) -> List[Table]:
     )
 
 
-def test_pickle(tables: List[Table]):
+def test_content_hierarchy_pickle(tables: List[Table]):
     for t in tables:
         tprime: Table = pickle.loads(pickle.dumps(t))
         assert t.to_list() == tprime.to_list()
@@ -26,3 +26,11 @@ def test_pickle(tables: List[Table]):
         for c in t.context:
             cprime: ContentHierarchy = pickle.loads(pickle.dumps(c))
             assert c.to_dict() == cprime.to_dict()
+
+
+def test_rich_text_pickle(tables: list[Table]):
+    for t in tables:
+        for row in t.rows:
+            for cell in row.cells:
+                cell_prime: RichText = pickle.loads(pickle.dumps(cell.value))
+                assert cell.value.to_dict() == cell_prime.to_dict()

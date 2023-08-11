@@ -1,13 +1,14 @@
 use hashbrown::HashMap;
 use pyo3::exceptions::PyKeyError;
+use pyo3::types::PyBytes;
 use std::fmt;
 
-use pyo3::{prelude::*, types::PyDict, types::PyList};
-use serde::{Deserialize, Serialize};
-
-use crate::misc::range_iter::RangeIter;
 use crate::misc::tree::iterator::ITree;
 use crate::misc::tree::simple_tree::SimpleTree;
+use crate::{error::into_pyerr, misc::range_iter::RangeIter};
+use postcard::{from_bytes, to_allocvec};
+use pyo3::{prelude::*, types::PyDict, types::PyList};
+use serde::{Deserialize, Serialize};
 
 pub const PSEUDO_TAG: &str = "";
 
@@ -289,6 +290,22 @@ impl RichText {
             text,
             element: SimpleTree::from_data(root, nodes, node2children),
         })
+    }
+
+    #[new]
+    pub fn new() -> Self {
+        RichText::empty()
+    }
+
+    pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<&'py PyBytes> {
+        // Implementing pickling support according to this issue: https://github.com/PyO3/pyo3/issues/100
+        let out = to_allocvec(&self).map_err(into_pyerr)?;
+        Ok(PyBytes::new(py, &out))
+    }
+
+    pub fn __setstate__(&mut self, state: &PyBytes) -> PyResult<()> {
+        *self = from_bytes::<RichText>(state.as_bytes()).map_err(into_pyerr)?;
+        Ok(())
     }
 }
 
