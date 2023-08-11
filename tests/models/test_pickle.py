@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 from pathlib import Path
 import pickle
-from typing import List
 import pytest
 from rsoup.core import ContextExtractor, RichText, Table, TableExtractor, ContentHierarchy
 
 
 @pytest.fixture
-def tables(resource_dir: Path) -> List[Table]:
+def tables(resource_dir: Path) -> list[Table]:
     extractor = TableExtractor(context_extractor=ContextExtractor())
     return extractor.extract(
         "http://example.org/table_span.html",
@@ -17,7 +18,7 @@ def tables(resource_dir: Path) -> List[Table]:
     )
 
 
-def test_content_hierarchy_pickle(tables: List[Table]):
+def test_content_hierarchy_pickle(tables: list[Table]):
     for t in tables:
         tprime: Table = pickle.loads(pickle.dumps(t))
         assert t.to_list() == tprime.to_list()
