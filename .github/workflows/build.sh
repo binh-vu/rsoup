@@ -28,21 +28,6 @@ then
 fi
 
 # ##############################################
-echo "::group::Discovering Python"
-TMP=$(python $SCRIPT_DIR/pydiscovery.py --min-version 3.8 --root-dir $PYTHON_HOME)
-PYTHON_EXECS=($TMP)
-if [ ${#PYTHON_EXECS[@]} -eq 0 ]; then
-    echo "No Python found. Did you forget to set any environment variable PYTHON_HOME?"
-else
-    for PYTHON_EXEC in "${PYTHON_EXECS[@]}"
-    do
-        echo "Found $PYTHON_EXEC"
-    done    
-fi
-echo "::endgroup::"
-echo
-
-# ##############################################
 echo "Install Rust"
 if ! command -v cargo &> /dev/null
 then
@@ -72,12 +57,27 @@ else
 fi
 
 # ##############################################
-for PYTHON_EXEC in "${PYTHON_EXECS[@]}"
-do
-    echo "::group::Building for Python $PYTHON_EXEC"
+echo "::group::Discovering Python"
+pip install wherepy  # to find local Python interpreters
+IFS=':' read -a PYTHON_INTERPRETERS < <(python -m wherepy --minimum-version 3.10 --return-execpath --search-dir "$PYTHON_ROOT_DIR")
+if [ ${#PYTHON_INTERPRETERS[@]} -eq 0 ]; then
+    echo "No Python found. Did you forget to set the environment variable PYTHON_ROOT_DIR?"
+else
+    for PYTHON_INTERPRETER in "${PYTHON_INTERPRETERS[@]}"
+    do
+        echo "Found $PYTHON_INTERPRETER"
+    done
+fi
+echo "::endgroup::"
+echo
 
-    echo "Run: maturin build -r -o dist -i $PYTHON_EXEC --target $target"
-    "maturin" build -r -o dist -i "$PYTHON_EXEC" --target $target
+# ##############################################
+for PYTHON_INTERPRETER in "${PYTHON_INTERPRETERS[@]}"
+do
+    echo "::group::Building for Python $PYTHON_INTERPRETER"
+
+    echo "Run: maturin build -r -o dist -i $PYTHON_INTERPRETER --target $target"
+    "maturin" build -r -o dist -i "$PYTHON_INTERPRETER" --target $target
 
     echo "::endgroup::"
     echo
