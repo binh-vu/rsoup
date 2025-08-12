@@ -116,7 +116,6 @@ jobs:
 
       - name: release
         run: |
-          cd rust
           pip install twine
           twine upload --skip-existing dist/* -u $PYPI_USER -p $PYPI_PWD
         env:
