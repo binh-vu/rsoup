@@ -3,13 +3,12 @@ name: CI
 on:
   push:
   pull_request:
-  workflow_dispatch:
 
 jobs:
   build:
     strategy:
       matrix:
-        platform: ["ubuntu-22.04", "macos-12", "windows-2022"]
+        platform: ["ubuntu-22.04", "macos-15", "windows-2022"]
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v3
@@ -17,6 +16,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: |
+            3.13
             3.12
             3.11
             3.10
@@ -24,7 +24,8 @@ jobs:
             3.8
       - name: Discover python
         run: |
-          echo "PYTHONS=$(python .github/workflows/pydiscovery.py --min-version 3.8 --delimiter ' ' --root-dir ${{ runner.tool_cache }}/Python)" >> "$GITHUB_ENV"
+          pip install wherepy
+          echo "PYTHONS=$(python -m wherepy --minimum-version 3.10 --delimiter ' ' --return-execpath --search-dir ${{ runner.tool_cache }}/Python)" >> "$GITHUB_ENV"
       - name: Cache Rust target directory
         uses: actions/cache@v3
         with:
@@ -33,11 +34,12 @@ jobs:
             ~/.cargo  
             target
       - name: Run Cargo test
-        if: "startsWith(matrix.platform, 'ubuntu')"
-        run: cargo test --no-default-features --features pyo3/auto-initialize
+        if: ${{ startsWith(matrix.platform, 'ubuntu') }}
+        run: |
+          cargo test --no-default-features --features pyo3/auto-initialize
       - uses: messense/maturin-action@v1
         env:
-          MACOSX_DEPLOYMENT_TARGET: 10.14
+          MACOSX_DEPLOYMENT_TARGET: "10.14"
         with:
           command: build
           args: >
@@ -45,16 +47,16 @@ jobs:
             --release ${{ startsWith(matrix.platform, 'ubuntu') && '--sdist' || '' }}
             ${{ startsWith(matrix.platform, 'macos') && '--target universal2-apple-darwin' || '' }}
       - name: Run Python test
-        if: "!startsWith(matrix.platform, 'windows')"
+        if: ${{ !startsWith(matrix.platform, 'windows') }}
         run: |
           python -c "import subprocess, glob, os; file = glob.glob(os.path.join('dist', '*cp38*.whl'))[0]; subprocess.check_output(['pip', 'install', file])"
           pip install pytest
           mv rsoup rsoup2
           pytest -xs tests/
       - name: Upload wheels
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-${{ matrix.platform }}
           path: dist
 
   build-manylinux:
@@ -70,7 +72,7 @@ jobs:
         run: |
           docker run --rm -w /project -v $(pwd):/project \
             -e EXTRA_PATH=/opt/python/cp38-cp38/bin \
-            -e PYTHON_HOME=/opt/python \
+            -e PYTHON_ROOT_DIR=/opt/python \
             -e CARGO_NET_GIT_FETCH_WITH_CLI=false \
             quay.io/pypa/manylinux2014_x86_64:latest \
             bash /project/.github/workflows/build.sh -t x86_64-unknown-linux-gnu
@@ -84,24 +86,39 @@ jobs:
       #       quay.io/pypa/manylinux2014_aarch64:latest \
       #       bash /project/.github/workflows/build.sh -t aarch64-unknown-linux-gnu
       - name: Upload wheels
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-manylinux
           path: dist
 
-  release:
-    name: Release
-    runs-on: ubuntu-latest
+  release-pypi:
+    name: Release PyPI.org
+    runs-on: ubuntu-22.04
     if: startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/dev-ci')
     needs: [build, build-manylinux]
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
-          name: wheels
-      - name: Publish to PyPI
-        uses: messense/maturin-action@v1
+          name: wheels-manylinux
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-ubuntu-22.04
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-macos-15
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-windows-2022
+          path: dist
+
+      - name: release
+        run: |
+          cd rust
+          pip install twine
+          twine upload --skip-existing dist/* -u $PYPI_USER -p $PYPI_PWD
         env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        with:
-          command: upload
-          args: --skip-existing *
+          PYPI_USER: __token__
+          PYPI_PWD: ${{ secrets.PYPI_API_TOKEN }}
