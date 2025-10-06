@@ -6,7 +6,7 @@ set -e
 # The script needs yum or apt
 #
 # Envionment Arguments: (handled by `args.py`)
-#   PYTHON_HOME: the path to the Python installation, which will be used to build the wheels for. 
+#   PYTHON_ROOT_DIR: path to the Python installation. This is used to find the Python interpreters.
 # Arguments:
 #   -t <target>: target platform. See https://doc.rust-lang.org/nightly/rustc/platform-support.html
 
@@ -24,6 +24,27 @@ done
 if [ -z "$target" ]
 then
     echo "target is not set (-t <target>). See more: https://doc.rust-lang.org/nightly/rustc/platform-support.html"
+    exit 1
+fi
+
+echo "::group::Setup build tools"
+# ##############################################
+# to build rocksdb, we need CLang and LLVM
+echo "Install CLang and LLVM"
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    if ! command -v yum &> /dev/null
+    then
+        # debian
+        apt update
+        apt install -y clang-11
+    else
+        # almalinux
+        yum install -y llvm-toolset
+    fi
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Skip on MacOS. Assuming you have CLang and LLVM installed."    
+else
+    echo "Unsupported OS: $OSTYPE"
     exit 1
 fi
 
@@ -72,13 +93,12 @@ echo "::endgroup::"
 echo
 
 # ##############################################
-for PYTHON_INTERPRETER in "${PYTHON_INTERPRETERS[@]}"
-do
-    echo "::group::Building for Python $PYTHON_INTERPRETER"
+PYTHON_INTERPRETERS_JOINED=$(IFS=' ' ; echo "${PYTHON_INTERPRETERS[*]/#/-i }")
 
-    echo "Run: maturin build -r -o dist -i $PYTHON_INTERPRETER --target $target"
-    "maturin" build -r -o dist -i "$PYTHON_INTERPRETER" --target $target
+echo "::group::Building for Python ${PYTHON_INTERPRETERS[@]}"
 
-    echo "::endgroup::"
-    echo
-done
+echo "Run: maturin build -r -o dist $PYTHON_INTERPRETERS_JOINED --target $target"
+maturin build -r -o dist $PYTHON_INTERPRETERS_JOINED --target $target
+
+echo "::endgroup::"
+echo
