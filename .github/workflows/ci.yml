@@ -82,7 +82,7 @@ jobs:
           name: wheels-manylinux-x86_64
           path: dist
   build-manylinux-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v3
       - name: Cache Rust target directory
